@@ -18,6 +18,14 @@ const (
 	userAgent       = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.26 Safari/537.36"
 )
 
+var (
+	httpClient  = &http.Client{Timeout: 10 * time.Second}
+	reChallenge = regexp.MustCompile(`"challenge":"(.*?)"`)
+	reErrorOK   = regexp.MustCompile(`"error":"ok"`)
+	reJSONP     = regexp.MustCompile(`\((.*?)\)`)
+	reQuote     = regexp.MustCompile(`'`)
+)
+
 type LoginResult struct {
 	Success bool
 	Message string
@@ -60,16 +68,17 @@ func (e *LoginEngine) getToken() error {
 		"_":        {timestamp},
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(getChallengeAPI + "?" + params.Encode())
+	resp, err := httpClient.Get(getChallengeAPI + "?" + params.Encode())
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	re := regexp.MustCompile(`"challenge":"(.*?)"`)
-	matches := re.FindStringSubmatch(string(body))
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("读取响应失败: %w", err)
+	}
+	matches := reChallenge.FindStringSubmatch(string(body))
 	if len(matches) < 2 {
 		return fmt.Errorf("无法获取 challenge token")
 	}
@@ -123,24 +132,25 @@ func (e *LoginEngine) Login() LoginResult {
 		"_":            {timestamp},
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(srunPortalAPI + "?" + params.Encode())
+	resp, err := httpClient.Get(srunPortalAPI + "?" + params.Encode())
 	if err != nil {
 		return LoginResult{false, "请求失败: " + err.Error()}
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return LoginResult{false, "读取响应失败: " + err.Error()}
+	}
 	bodyStr := string(body)
 
-	if regexp.MustCompile(`"error":"ok"`).MatchString(bodyStr) {
+	if reErrorOK.MatchString(bodyStr) {
 		return LoginResult{true, "登录成功"}
 	}
 
-	re := regexp.MustCompile(`\((.*?)\)`)
-	matches := re.FindStringSubmatch(bodyStr)
+	matches := reJSONP.FindStringSubmatch(bodyStr)
 	if len(matches) >= 2 {
-		jsonStr := regexp.MustCompile(`'`).ReplaceAllString(matches[1], `"`)
+		jsonStr := reQuote.ReplaceAllString(matches[1], `"`)
 		var errData map[string]interface{}
 		if err := json.Unmarshal([]byte(jsonStr), &errData); err == nil {
 			return LoginResult{false, fmt.Sprintf("%v: %v", errData["error"], errData["error_msg"])}
