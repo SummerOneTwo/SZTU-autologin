@@ -1,3 +1,4 @@
+import copy
 import json
 import shutil
 from pathlib import Path
@@ -34,7 +35,7 @@ class ConfigManager:
     def load(self) -> dict:
         """加载配置"""
         if not self.config_file.exists():
-            self._config = self.DEFAULT_CONFIG.copy()
+            self._config = copy.deepcopy(self.DEFAULT_CONFIG)
             return self._config
 
         try:
@@ -44,15 +45,13 @@ class ConfigManager:
             return self._config
         except Exception:
             self.backup()
-            self._config = self.DEFAULT_CONFIG.copy()
+            self._config = copy.deepcopy(self.DEFAULT_CONFIG)
             return self._config
 
-    def save(self, config: dict = None):
+    def save(self):
         """保存配置"""
-        if config:
-            self._config = config
         if not self._config:
-            self._config = self.DEFAULT_CONFIG.copy()
+            self._config = copy.deepcopy(self.DEFAULT_CONFIG)
 
         try:
             with open(self.config_file, "w", encoding="utf-8") as f:
@@ -89,10 +88,13 @@ class ConfigManager:
     def backup(self):
         """备份当前配置"""
         if self.config_file.exists():
-            backup_file = self.config_file.with_suffix(
-                f".json.backup.{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            )
-            shutil.copy2(self.config_file, backup_file)
+            try:
+                backup_file = self.config_file.with_suffix(
+                    f".json.backup.{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                shutil.copy2(self.config_file, backup_file)
+            except Exception:
+                pass
 
     def update_last_login(self):
         """更新最后登录时间"""
@@ -112,3 +114,15 @@ class ConfigManager:
             return username
         suffix = self.ISP_CONFIG.get(isp, {}).get("suffix", "")
         return f"{username}{suffix}"
+
+    def get_password(self) -> str:
+        """获取密码"""
+        if not self._config:
+            self.load()
+        return self._config["account"]["password"] or ""
+
+    def set_password(self, password: str):
+        """设置密码"""
+        if not self._config:
+            self.load()
+        self._config["account"]["password"] = password

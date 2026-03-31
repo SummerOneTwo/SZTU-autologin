@@ -2,6 +2,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+_logger_instances: dict[str, "Logger"] = {}
+
 
 class Logger:
     def __init__(self, name: str = "autologin", log_dir: str = "logs"):
@@ -13,23 +15,23 @@ class Logger:
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
-        self.logger.handlers.clear()
 
-        formatter = logging.Formatter(
-            "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        if not self.logger.handlers:
+            formatter = logging.Formatter(
+                "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
 
-        log_file = self.log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+            log_file = self.log_dir / f"{datetime.now().strftime('%Y-%m-%d')}.log"
+            file_handler = logging.FileHandler(log_file, encoding="utf-8")
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
 
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
 
     def _cleanup_old_logs(self):
         """清理30天前的日志"""

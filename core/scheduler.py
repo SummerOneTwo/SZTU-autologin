@@ -32,7 +32,7 @@ class TaskScheduler:
         ]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)
             return result.returncode == 0
         except Exception:
             return False
@@ -42,7 +42,7 @@ class TaskScheduler:
         """删除任务"""
         cmd = ["schtasks", "/delete", "/tn", cls.TASK_NAME, "/f"]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)
             return result.returncode == 0
         except Exception:
             return False
@@ -52,7 +52,7 @@ class TaskScheduler:
         """检查任务是否存在"""
         cmd = ["schtasks", "/query", "/tn", cls.TASK_NAME]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)
             return result.returncode == 0
         except Exception:
             return False

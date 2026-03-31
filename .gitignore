@@ -1,31 +1,44 @@
-*.pyc
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*.pyo
 *$py.class
 *.so
 .Python
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Build / packaging artifacts
 build/
-develop-eggs/
 dist/
+*.egg
+*.egg-info/
+.eggs/
+develop-eggs/
 downloads/
 eggs/
-.eggs/
 lib/
 lib64/
 parts/
 sdist/
 var/
 wheels/
-*.egg-info/
 .installed.cfg
-*.egg
-.venv/
-env/
-venv/
-ENV/
+*.spec
+
+# Cache
+.ruff_cache/
+.pytest_cache/
+
+# Application files
 config.json
+autologin.lock
+
+# Logs
 *.log
 logs/*.log
 !logs/.gitkeep
-autologin.lock
-*.spec

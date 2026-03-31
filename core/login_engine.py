@@ -5,13 +5,14 @@ import requests
 
 from utils import crypto, network
 
+HTTP_TIMEOUT = 10
 
-header = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.26 Safari/537.36"
-}
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.26 Safari/537.36"
 
-get_challenge_api = "http://172.19.0.5/cgi-bin/get_challenge"
-srun_portal_api = "http://172.19.0.5/cgi-bin/srun_portal"
+REQUEST_HEADERS = {"User-Agent": USER_AGENT}
+
+GET_CHALLENGE_API = "http://172.19.0.5/cgi-bin/get_challenge"
+SRUN_PORTAL_API = "http://172.19.0.5/cgi-bin/srun_portal"
 
 
 class LoginResult:
@@ -21,18 +22,18 @@ class LoginResult:
 
 
 class LoginEngine:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, username: str = "", password: str = ""):
         self.config = config
+        self.username = username
+        self.password = password
         self.token = ""
         self.ip = ""
-        self.username = ""
-        self.password = ""
         self.ac_id = config["network"]["ac_id"]
         self.i = ""
         self.hmd5 = ""
         self.chksum = ""
         self.n = "200"
-        self.type = "1"
+        self.login_type = "1"
         self.enc = "srun_bx1"
 
     def _init_getip(self):
@@ -41,37 +42,41 @@ class LoginEngine:
 
     def _get_token(self):
         """获取challenge token"""
-        get_challenge_params = {
+        params = {
             "callback": "jQuery112406608265734960486_" + str(int(time.time() * 1000)),
             "username": self.username,
             "ip": self.ip,
             "_": int(time.time() * 1000),
         }
-        get_challenge_res = requests.get(
-            get_challenge_api, params=get_challenge_params, headers=header
+        resp = requests.get(
+            GET_CHALLENGE_API,
+            params=params,
+            headers=REQUEST_HEADERS,
+            timeout=HTTP_TIMEOUT,
         )
-        self.token = re.search('"challenge":"(.*?)"', get_challenge_res.text).group(1)
+        match = re.search(r'"challenge":"(.*?)"', resp.text)
+        if not match:
+            raise ValueError("无法获取challenge token")
+        self.token = match.group(1)
         return self.token
 
-    def _get_info(self):
-        info_temp = {
+    def _get_info(self) -> str:
+        info = {
             "username": self.username,
             "password": self.password,
             "ip": self.ip,
             "acid": self.ac_id,
             "enc_ver": self.enc,
         }
-        i = re.sub("'", '"', str(info_temp))
-        i = re.sub(" ", "", i)
-        return i
+        return json.dumps(info, separators=(",", ":"))
 
-    def _get_chksum(self):
+    def _get_chksum(self) -> str:
         chkstr = self.token + self.username
         chkstr += self.token + self.hmd5
         chkstr += self.token + self.ac_id
         chkstr += self.token + self.ip
         chkstr += self.token + self.n
-        chkstr += self.token + self.type
+        chkstr += self.token + self.login_type
         chkstr += self.token + self.i
         return chkstr
 
@@ -83,13 +88,6 @@ class LoginEngine:
 
     def login(self) -> LoginResult:
         """执行登录"""
-        from core.config import ConfigManager
-
-        cfg_mgr = ConfigManager()
-        self.username = cfg_mgr.get_full_username()
-        self.password = self.config["account"]["password"]
-        self.ac_id = self.config["network"]["ac_id"]
-
         try:
             self._init_getip()
             if not self.ip:
@@ -98,7 +96,7 @@ class LoginEngine:
             self._get_token()
             self._do_complex_work()
 
-            srun_portal_params = {
+            params = {
                 "callback": "jQuery11240645308969735664_"
                 + str(int(time.time() * 1000)),
                 "action": "login",
@@ -109,20 +107,23 @@ class LoginEngine:
                 "chksum": self.chksum,
                 "info": self.i,
                 "n": self.n,
-                "type": self.type,
+                "type": self.login_type,
                 "os": "windows 10",
                 "name": "windows",
                 "double_stack": 0,
                 "_": int(time.time() * 1000),
             }
-            srun_portal_res = requests.get(
-                srun_portal_api, params=srun_portal_params, headers=header
+            resp = requests.get(
+                SRUN_PORTAL_API,
+                params=params,
+                headers=REQUEST_HEADERS,
+                timeout=HTTP_TIMEOUT,
             )
 
-            if "ok" in srun_portal_res.text:
+            if "ok" in resp.text:
                 return LoginResult(True, "登录成功")
             else:
-                match = re.search(r"\((.*?)\)", srun_portal_res.text)
+                match = re.search(r"\((.*?)\)", resp.text)
                 if match:
                     error_data = match.group(1).replace("'", '"')
                     error_msg = json.loads(error_data)
@@ -131,5 +132,9 @@ class LoginEngine:
                         f"{error_msg.get('error', '')}: {error_msg.get('error_msg', '')}",
                     )
                 return LoginResult(False, "登录失败：无法解析响应")
+        except requests.exceptions.Timeout:
+            return LoginResult(False, "请求超时")
+        except requests.exceptions.ConnectionError:
+            return LoginResult(False, "网络连接失败")
         except Exception as e:
             return LoginResult(False, str(e))

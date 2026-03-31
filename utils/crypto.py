@@ -1,62 +1,52 @@
-# _*_ coding : utf-8 _*_
 import math
 import hashlib
 import hmac
 
 
-def force(msg):
-    ret = []
-    for w in msg:
-        ret.append(ord(w))
-    return bytes(ret)
-
-
-def ordat(msg, idx):
+def _ord_at(msg: str, idx: int) -> int:
     if len(msg) > idx:
         return ord(msg[idx])
     return 0
 
 
-def sencode(msg, key):
-    l = len(msg)
-    pwd = []
-    for i in range(0, l, 4):
-        pwd.append(
-            ordat(msg, i)
-            | ordat(msg, i + 1) << 8
-            | ordat(msg, i + 2) << 16
-            | ordat(msg, i + 3) << 24
+def _sencode(msg: str, key: bool) -> list:
+    length = len(msg)
+    result = []
+    for i in range(0, length, 4):
+        result.append(
+            _ord_at(msg, i)
+            | _ord_at(msg, i + 1) << 8
+            | _ord_at(msg, i + 2) << 16
+            | _ord_at(msg, i + 3) << 24
         )
     if key:
-        pwd.append(l)
-    return pwd
+        result.append(length)
+    return result
 
 
-def lencode(msg, key):
-    l = len(msg)
-    ll = (l - 1) << 2
+def _lencode(msg: list, key: bool) -> str:
+    length = len(msg)
+    total_len = (length - 1) << 2
     if key:
-        m = msg[l - 1]
-        if m < ll - 3 or m > ll:
-            return
-        ll = m
-    for i in range(0, l):
+        last = msg[length - 1]
+        if last < total_len - 3 or last > total_len:
+            return ""
+        total_len = last
+    for i in range(length):
         msg[i] = (
             chr(msg[i] & 0xFF)
             + chr(msg[i] >> 8 & 0xFF)
             + chr(msg[i] >> 16 & 0xFF)
             + chr(msg[i] >> 24 & 0xFF)
         )
-    if key:
-        return "".join(msg)[0:ll]
-    return "".join(msg)
+    return "".join(msg)[:total_len]
 
 
-def get_xencode(msg, key):
+def get_xencode(msg: str, key: str) -> str:
     if msg == "":
         return ""
-    pwd = sencode(msg, True)
-    pwdk = sencode(key, False)
+    pwd = _sencode(msg, True)
+    pwdk = _sencode(key, False)
     if len(pwdk) < 4:
         pwdk = pwdk + [0] * (4 - len(pwdk))
     n = len(pwd) - 1
@@ -87,23 +77,21 @@ def get_xencode(msg, key):
         pwd[n] = pwd[n] + m & (0xBB390742 | 0x44C6F8BD)
         z = pwd[n]
         q = q - 1
-    return lencode(pwd, False)
+    return _lencode(pwd, False)
 
 
 _PADCHAR = "="
 _ALPHA = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA"
 
 
-def _getbyte(s, i):
-    # print(s,' ',i)
+def _getbyte(s: str, i: int) -> int:
     x = ord(s[i])
     if x > 255:
         raise ValueError("INVALID_CHARACTER_ERR: DOM Exception 5")
     return x
 
 
-def get_base64(s):
-    i = 0
+def get_base64(s: str) -> str:
     b10 = 0
     x = []
     imax = len(s) - len(s) % 3
@@ -130,9 +118,9 @@ def get_base64(s):
     return "".join(x)
 
 
-def get_sha1(value):
+def get_sha1(value: str) -> str:
     return hashlib.sha1(value.encode()).hexdigest()
 
 
-def get_md5(password, token):
+def get_md5(password: str, token: str) -> str:
     return hmac.new(token.encode(), password.encode(), hashlib.md5).hexdigest()

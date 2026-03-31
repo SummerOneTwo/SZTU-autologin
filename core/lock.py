@@ -2,6 +2,8 @@ import os
 import sys
 from pathlib import Path
 
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
 
 class FileLock:
     def __init__(self, lock_file: str = "autologin.lock"):
@@ -20,7 +22,9 @@ class FileLock:
 
                             kernel32 = ctypes.windll.kernel32
                             try:
-                                handle = kernel32.OpenProcess(1, False, int(pid))
+                                handle = kernel32.OpenProcess(
+                                    PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid)
+                                )
                                 if handle:
                                     kernel32.CloseHandle(handle)
                                     return False
@@ -35,10 +39,12 @@ class FileLock:
             except Exception:
                 pass
         try:
-            with open(self.lock_file, "w") as f:
+            with open(self.lock_file, "x") as f:
                 f.write(str(os.getpid()))
             self._locked = True
             return True
+        except FileExistsError:
+            return False
         except Exception:
             return False
 

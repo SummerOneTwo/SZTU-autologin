@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-# _*_ coding : utf-8 _*_
 import time
 import argparse
 
-from colorama import init, Fore, Style
+from colorama import Fore, Style
 
 from core.config import ConfigManager
 from core.login_engine import LoginEngine
@@ -12,9 +11,6 @@ from core.checker import ConnectionChecker
 from core.scheduler import TaskScheduler
 from core.logger import Logger
 from core.lock import FileLock
-
-
-init(autoreset=True)
 
 
 class AutologinApp:
@@ -27,15 +23,19 @@ class AutologinApp:
         self.checker = None
         self.running = True
 
-    def setup_login_engine(self):
+    def setup_login_engine(self) -> LoginEngine:
         if not self.login_engine:
-            self.login_engine = LoginEngine(self.config)
+            full_username = self.cfg_mgr.get_full_username()
+            password = self.cfg_mgr.get_password()
+            self.login_engine = LoginEngine(
+                self.config, username=full_username, password=password
+            )
         return self.login_engine
 
-    def setup_checker(self):
+    def setup_checker(self) -> ConnectionChecker:
         if not self.checker:
             self.checker = ConnectionChecker(
-                self.config, self.setup_login_engine(), self.logger
+                self.config, self.setup_login_engine(), self.logger, self.cfg_mgr
             )
         return self.checker
 
@@ -46,9 +46,10 @@ class AutologinApp:
         auto_reconnect = self.config["network"]["auto_reconnect"]
         start_on_boot = TaskScheduler.task_exists()
         last_login = self.config["system"]["last_login"] or "从未"
+        version = self.config["system"]["version"]
 
         print(f"\n{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
-        print(f"    {Fore.CYAN}SZTU 校园网自动登录工具 v2.0{Style.RESET_ALL}")
+        print(f"    {Fore.CYAN}SZTU 校园网自动登录工具 v{version}{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'=' * 55}{Style.RESET_ALL}")
 
         status_color = Fore.GREEN if is_logged_in else Fore.RED
@@ -91,15 +92,22 @@ class AutologinApp:
         print("[0] 退出")
         print(f"{Fore.CYAN}{'-' * 55}{Style.RESET_ALL}")
 
+    def _read_input(self, prompt: str, required: bool = True) -> str:
+        while True:
+            value = input(prompt).strip()
+            if value or not required:
+                return value
+            print(f"{Fore.RED}输入不能为空，请重新输入{Style.RESET_ALL}")
+
     def config_wizard(self):
         print(f"\n{Fore.GREEN}欢迎使用 SZTU 校园网自动登录工具！{Style.RESET_ALL}")
         print("\n请按提示完成初始配置：\n")
 
         print(f"{Fore.YELLOW}[步骤 1/4] 输入学号{Style.RESET_ALL}")
-        student_id = input("> 输入学号: ").strip()
+        student_id = self._read_input("> 输入学号: ")
 
         print(f"\n{Fore.YELLOW}[步骤 2/4] 输入密码{Style.RESET_ALL}")
-        password = input("> 输入密码: ").strip()
+        password = self._read_input("> 输入密码: ")
 
         print(f"\n{Fore.YELLOW}[步骤 3/4] 选择运营商{Style.RESET_ALL}")
         print("  [1] 中国联通 (@cucc)")
@@ -116,11 +124,11 @@ class AutologinApp:
         area = "dormitory" if area_choice == "1" else "teaching"
 
         self.config["account"]["username"] = student_id
-        self.config["account"]["password"] = password
+        self.cfg_mgr.set_password(password)
         self.config["account"]["isp"] = isp
         self.config["network"]["area"] = area
         self.config["network"]["ac_id"] = ConfigManager.AREA_CONFIG[area]["ac_id"]
-        self.cfg_mgr.save(self.config)
+        self.cfg_mgr.save()
 
         print(f"\n{Fore.GREEN}配置完成，正在测试登录...{Style.RESET_ALL}")
         result = self.setup_login_engine().login()
@@ -141,7 +149,7 @@ class AutologinApp:
 
         new_password = input("> 输入新密码: ").strip()
         if new_password:
-            self.config["account"]["password"] = new_password
+            self.cfg_mgr.set_password(new_password)
 
         print("\n选择运营商:")
         print("  [1] 中国联通 (@cucc)")
@@ -152,7 +160,7 @@ class AutologinApp:
             isp_map = {"1": "cucc", "2": "cmcc", "3": "chinanet"}
             self.config["account"]["isp"] = isp_map[isp_choice]
 
-        self.cfg_mgr.save(self.config)
+        self.cfg_mgr.save()
         print(f"{Fore.GREEN}账号密码已更新{Style.RESET_ALL}")
 
     def switch_area(self):
@@ -173,7 +181,7 @@ class AutologinApp:
         else:
             return
 
-        self.cfg_mgr.save(self.config)
+        self.cfg_mgr.save()
         print(
             f"{Fore.GREEN}已切换到 {ConfigManager.AREA_CONFIG[self.config['network']['area']]['name']}{Style.RESET_ALL}"
         )
@@ -198,7 +206,7 @@ class AutologinApp:
         self.config["network"]["auto_reconnect"] = not self.config["network"][
             "auto_reconnect"
         ]
-        self.cfg_mgr.save(self.config)
+        self.cfg_mgr.save()
         status = "已启用" if self.config["network"]["auto_reconnect"] else "已禁用"
         print(f"\n{Fore.GREEN}自动检测重连 {status}{Style.RESET_ALL}")
 
@@ -216,7 +224,7 @@ class AutologinApp:
                 return
             if TaskScheduler.delete_task():
                 self.config["system"]["start_on_boot"] = False
-                self.cfg_mgr.save(self.config)
+                self.cfg_mgr.save()
                 print(f"{Fore.GREEN}开机自启已关闭{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}关闭失败{Style.RESET_ALL}")
@@ -227,7 +235,7 @@ class AutologinApp:
                 return
             if TaskScheduler.create_task():
                 self.config["system"]["start_on_boot"] = True
-                self.cfg_mgr.save(self.config)
+                self.cfg_mgr.save()
                 print(f"{Fore.GREEN}开机自启已启用{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}启用失败，请以管理员身份运行{Style.RESET_ALL}")
@@ -312,6 +320,10 @@ class AutologinApp:
 
 
 def main():
+    from colorama import init
+
+    init(autoreset=True)
+
     parser = argparse.ArgumentParser(description="SZTU 校园网自动登录工具")
     parser.add_argument("--silent", action="store_true", help="静默模式运行")
     args = parser.parse_args()
