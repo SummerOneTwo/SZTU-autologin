@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,23 +15,27 @@ const (
 	internetCheckURL = "http://www.baidu.com"
 )
 
+var (
+	daemonClient = &http.Client{Timeout: 5 * time.Second}
+)
+
 func isOnCampusNetwork() bool {
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(campusCheckURL)
+	resp, err := daemonClient.Get(campusCheckURL)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode == 200
 }
 
 func isLoggedIn() bool {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(internetCheckURL)
+	resp, err := daemonClient.Get(internetCheckURL)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode == 200
 }
 
