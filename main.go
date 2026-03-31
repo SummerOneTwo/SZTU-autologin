@@ -38,10 +38,6 @@ func printUsage() {
 }
 
 // Placeholder functions - will be implemented in later tasks
-func runSetup() {
-	fmt.Println("Setup command - to be implemented")
-}
-
 func runLogin() {
 	fmt.Println("Login command - to be implemented")
 }
