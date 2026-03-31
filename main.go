@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const Version = "v3.0.0"
+
 func main() {
 	if len(os.Args) < 2 {
 		runInteractive()
@@ -39,19 +41,31 @@ func runInteractive() {
 		return
 	}
 
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "配置无效: %v\n", err)
+		fmt.Fprintln(os.Stderr, "请先选择 [1] 修改账号密码")
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		showStatus(cfg)
 		showMenu()
 		fmt.Print("输入选项: ")
-		choice, _ := reader.ReadString('\n')
+		choice, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
+			continue
+		}
 		choice = strings.TrimSpace(choice)
 
 		switch choice {
 		case "1":
 			runSetup()
-			cfg, _ = LoadConfig()
+			cfg, err = LoadConfig()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+			}
 		case "2":
 			runLogin()
 		case "3":
@@ -67,14 +81,17 @@ func runInteractive() {
 
 		if choice != "0" {
 			fmt.Print("\n按回车继续...")
-			reader.ReadString('\n')
+			_, err = reader.ReadString('\n')
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
+			}
 		}
 	}
 }
 
 func showStatus(cfg Config) {
 	fmt.Println("\n=======================================")
-	fmt.Println("    SZTU 校园网自动登录工具 v3.0.0")
+	fmt.Printf("    SZTU 校园网自动登录工具 %s\n", Version)
 	fmt.Println("=======================================")
 	fmt.Printf("用户名: %s\n", cfg.Username)
 	fmt.Printf("运营商: %s\n", getISPName(cfg.ISP))
@@ -135,36 +152,61 @@ func runAutostartInteractive() {
 	fmt.Print("> 选择: ")
 
 	reader := bufio.NewReader(os.Stdin)
-	choice, _ := reader.ReadString('\n')
+	choice, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
+		return
+	}
 	choice = strings.TrimSpace(choice)
 
+	var action string
 	switch choice {
 	case "1":
+		action = "on"
+	case "2":
+		action = "off"
+	case "3":
+		action = "status"
+	default:
+		fmt.Println("无效选项")
+		return
+	}
+
+	handleAutostartAction(action, true)
+}
+
+func handleAutostartAction(action string, interactive bool) {
+	switch action {
+	case "on":
 		if err := enableAutostart(); err != nil {
 			fmt.Fprintf(os.Stderr, "启用失败: %v\n", err)
+			if !interactive {
+				os.Exit(1)
+			}
 		} else {
 			fmt.Println("开机自启动已启用")
 		}
-	case "2":
+	case "off":
 		if err := disableAutostart(); err != nil {
 			fmt.Fprintf(os.Stderr, "禁用失败: %v\n", err)
+			if !interactive {
+				os.Exit(1)
+			}
 		} else {
 			fmt.Println("开机自启动已禁用")
 		}
-	case "3":
+	case "status":
 		if isAutostartEnabled() {
 			fmt.Println("开机自启动: 已启用")
 		} else {
 			fmt.Println("开机自启动: 未启用")
 		}
-	default:
-		fmt.Println("无效选项")
 	}
 }
 
 func waitExit() {
 	fmt.Print("\n按回车键退出...")
-	bufio.NewReader(os.Stdin).ReadString('\n')
+	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
 }
 
 func printUsage() {
@@ -208,26 +250,10 @@ func runAutostart() {
 		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
 		return
 	}
-	switch os.Args[2] {
-	case "on":
-		if err := enableAutostart(); err != nil {
-			fmt.Fprintf(os.Stderr, "启用失败: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("开机自启动已启用")
-	case "off":
-		if err := disableAutostart(); err != nil {
-			fmt.Fprintf(os.Stderr, "禁用失败: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("开机自启动已禁用")
-	case "status":
-		if isAutostartEnabled() {
-			fmt.Println("开机自启动: 已启用")
-		} else {
-			fmt.Println("开机自启动: 未启用")
-		}
-	default:
+	action := os.Args[2]
+	if action != "on" && action != "off" && action != "status" {
 		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
+		return
 	}
+	handleAutostartAction(action, false)
 }

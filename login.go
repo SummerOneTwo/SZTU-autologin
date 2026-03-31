@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	httpClient  = &http.Client{Timeout: 10 * time.Second}
+	HTTPClient  = &http.Client{Timeout: 10 * time.Second}
 	reChallenge = regexp.MustCompile(`"challenge":"(.*?)"`)
 	reErrorOK   = regexp.MustCompile(`"error":"ok"`)
 	reJSONP     = regexp.MustCompile(`\((.*?)\)`)
@@ -54,7 +54,10 @@ func (e *LoginEngine) getLocalIP() error {
 		return err
 	}
 	defer conn.Close()
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return fmt.Errorf("无法获取本地UDP地址")
+	}
 	e.ip = localAddr.IP.String()
 	return nil
 }
@@ -68,7 +71,7 @@ func (e *LoginEngine) getToken() error {
 		"_":        {timestamp},
 	}
 
-	resp, err := httpClient.Get(getChallengeAPI + "?" + params.Encode())
+	resp, err := HTTPClient.Get(getChallengeAPI + "?" + params.Encode())
 	if err != nil {
 		return err
 	}
@@ -86,7 +89,7 @@ func (e *LoginEngine) getToken() error {
 	return nil
 }
 
-func (e *LoginEngine) doComplexWork() {
+func (e *LoginEngine) doComplexWork() error {
 	info := map[string]string{
 		"username": e.config.GetFullUsername(),
 		"password": e.config.Password,
@@ -94,13 +97,17 @@ func (e *LoginEngine) doComplexWork() {
 		"acid":     e.acID,
 		"enc_ver":  "srun_bx1",
 	}
-	infoJSON, _ := json.Marshal(info)
+	infoJSON, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("JSON序列化失败: %w", err)
+	}
 	e.i = "{SRBX1}" + getBase64(getXEncode(string(infoJSON), e.token))
 	e.hmd5 = getMD5(e.config.Password, e.token)
 
 	chkstr := e.token + e.config.GetFullUsername() + e.token + e.hmd5 +
 		e.token + e.acID + e.token + e.ip + e.token + "200" + e.token + "1" + e.token + e.i
 	e.chksum = getSHA1(chkstr)
+	return nil
 }
 
 func (e *LoginEngine) Login() LoginResult {
@@ -112,7 +119,9 @@ func (e *LoginEngine) Login() LoginResult {
 		return LoginResult{false, "获取token失败: " + err.Error()}
 	}
 
-	e.doComplexWork()
+	if err := e.doComplexWork(); err != nil {
+		return LoginResult{false, "加密处理失败: " + err.Error()}
+	}
 
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	params := url.Values{
@@ -132,7 +141,7 @@ func (e *LoginEngine) Login() LoginResult {
 		"_":            {timestamp},
 	}
 
-	resp, err := httpClient.Get(srunPortalAPI + "?" + params.Encode())
+	resp, err := HTTPClient.Get(srunPortalAPI + "?" + params.Encode())
 	if err != nil {
 		return LoginResult{false, "请求失败: " + err.Error()}
 	}

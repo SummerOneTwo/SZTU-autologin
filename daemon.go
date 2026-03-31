@@ -16,11 +16,11 @@ const (
 )
 
 var (
-	daemonClient = &http.Client{Timeout: 5 * time.Second}
+	DaemonClient = &http.Client{Timeout: 5 * time.Second}
 )
 
 func isOnCampusNetwork() bool {
-	resp, err := daemonClient.Get(campusCheckURL)
+	resp, err := DaemonClient.Get(campusCheckURL)
 	if err != nil {
 		return false
 	}
@@ -30,7 +30,7 @@ func isOnCampusNetwork() bool {
 }
 
 func isLoggedIn() bool {
-	resp, err := daemonClient.Get(internetCheckURL)
+	resp, err := DaemonClient.Get(internetCheckURL)
 	if err != nil {
 		return false
 	}

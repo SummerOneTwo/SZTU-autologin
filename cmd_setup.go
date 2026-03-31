@@ -29,11 +29,15 @@ func readPassword(prompt string) (string, error) {
 }
 
 func runSetup() {
-	cfg, _ := LoadConfig()
+	cfg, err := LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v，将使用默认配置\n", err)
+		cfg = DefaultConfig()
+	}
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("\n欢迎使用 SZTU 校园网自动登录工具！")
-	fmt.Println("请按提示完成初始配置：\n")
+	fmt.Println("请按提示完成初始配置: ")
 
 	// Username
 	username, err := readLine(reader, "[步骤 1/4] 输入学号: ")
