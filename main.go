@@ -37,9 +37,29 @@ func printUsage() {
 	fmt.Println("  sztu-autologin help     显示帮助")
 }
 
-// Placeholder functions - will be implemented in later tasks
 func runLogin() {
-	fmt.Println("Login command - to be implemented")
+	cfg, err := LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "配置无效: %v\n", err)
+		fmt.Fprintln(os.Stderr, "请先运行: sztu-autologin setup")
+		os.Exit(1)
+	}
+
+	fmt.Println("正在登录...")
+	engine := NewLoginEngine(cfg)
+	result := engine.Login()
+
+	if result.Success {
+		fmt.Printf("✓ %s\n", result.Message)
+	} else {
+		fmt.Printf("✗ %s\n", result.Message)
+		os.Exit(1)
+	}
 }
 
 func runDaemon() {
