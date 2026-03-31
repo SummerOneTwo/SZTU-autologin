@@ -61,7 +61,3 @@ func runLogin() {
 		os.Exit(1)
 	}
 }
-
-func runDaemon() {
-	fmt.Println("Daemon command - to be implemented")
-}
