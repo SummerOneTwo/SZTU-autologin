@@ -1,44 +1,39 @@
-# Byte-compiled / optimized / DLL files
+# Binaries
+sztu-autologin.exe
+sztu-autologin
+*.exe
+
+# Python (legacy)
 __pycache__/
 *.py[cod]
 *.pyo
-*$py.class
-*.so
-.Python
-
-# Virtual environments
+*.py.class
 .venv/
 env/
 venv/
-ENV/
-
-# Build / packaging artifacts
 build/
 dist/
 *.egg
 *.egg-info/
-.eggs/
-develop-eggs/
-downloads/
-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-.installed.cfg
 *.spec
-
-# Cache
 .ruff_cache/
 .pytest_cache/
 
-# Application files
+# Config
 config.json
 autologin.lock
+autologin.key
 
 # Logs
 *.log
 logs/*.log
 !logs/.gitkeep
+
+# Go
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

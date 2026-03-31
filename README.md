@@ -1,64 +1,75 @@
-# SZTU-autologin
-SZTU深圳技术大学校园网自动登录脚本 v2.0
+# SZTU 校园网自动登录工具
 
-觉得好用不妨点个star😋
+深圳技术大学校园网自动登录工具，Go 重构版本。
 
-## 功能特性
+## 功能
 
-- ✅ 支持宿舍区和教学区切换
-- ✅ 账号密码便捷配置
-- ✅ 命令行交互式菜单
-- ✅ 定时检测网络状态，掉网自动重连
-- ✅ Windows任务计划开机自启
-- ✅ 后台静默运行
-- ✅ 完整的日志系统
+- 交互式配置账号密码
+- 立即登录
+- 后台自动检测重连
+- Windows 开机自启动
 
-## 快速开始
-
-### 方式一：使用发布版本（推荐）
-
-1. 从 [Releases](../../releases) 下载最新的 `SZTU-Autologin.exe`
-2. 双击运行，按提示完成配置
-3. 在菜单中启用开机自启
-
-### 方式二：从源码运行
-
-1. 克隆仓库，使用 `uv` 管理依赖：
+## 使用
 
 ```bash
-uv sync
-uv run main.py
+# 首次配置
+sztu-autologin.exe setup
+
+# 立即登录
+sztu-autologin.exe login
+
+# 后台运行（自动重连）
+sztu-autologin.exe daemon
+
+# 开机自启动管理
+sztu-autologin.exe autostart on     # 启用
+sztu-autologin.exe autostart off    # 禁用
+sztu-autologin.exe autostart status # 查看状态
+
+# 帮助
+sztu-autologin.exe help
 ```
 
-### 方式三：打包为可执行文件
+## 配置文件
+
+配置保存在 `config.json`，可手动编辑：
+
+```json
+{
+  "username": "学号",
+  "password": "密码",
+  "isp": "cucc",
+  "area": "dormitory",
+  "ac_id": "17",
+  "auto_reconnect": true,
+  "check_interval": 300
+}
+```
+
+### 运营商选项
+
+- `cucc` - 中国联通
+- `cmcc` - 中国移动
+- `chinanet` - 中国电信
+
+### 区域选项
+
+- `dormitory` - 宿舍区 (ac_id=17)
+- `teaching` - 教学区 (ac_id=1)
+
+## 编译
 
 ```bash
-uv add pyinstaller
-uv run pyinstaller -F -w --name SZTU-Autologin main.py
+go build -o sztu-autologin.exe
 ```
 
-## 使用说明
+## 体积
 
-首次运行会进入配置向导，按提示输入：
-1. 学号
-2. 密码
-3. 选择运营商（联通/移动/电信）
-4. 选择区域（宿舍区/教学区）
+编译后约 2-3MB，无额外依赖。
 
-主菜单选项：
-- [1] 修改账号密码
-- [2] 切换区域
-- [3] 手动登录/注销
-- [4] 开关自动检测重连
-- [5] 开关开机自启
-- [6] 查看日志
-- [7] 测试当前连接
-- [0] 退出
+## 从 Python 版本迁移
 
-## 更新日志
-
-详见 [CHANGELOG.md](./CHANGELOG.md)
-
-## 致谢
-
-本项目基于 [shadow-aaa/SZTU-autologin](https://github.com/shadow-aaa/SZTU-autologin) 重构而来。
+如果你之前使用 Python 版本：
+1. 删除旧的 `config.json`（格式不兼容）
+2. 运行 `sztu-autologin.exe setup` 重新配置
+3. 删除旧的 Python 文件和 `autologin.key`
