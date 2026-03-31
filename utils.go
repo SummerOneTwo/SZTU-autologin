@@ -1,18 +1,17 @@
 package main
 
 import (
+	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
 	"math"
+	"strings"
 )
 
-func getMD5(s string, token string) string {
-	h := md5.New()
-	h.Write([]byte(s))
-	if token != "" {
-		h.Write([]byte(token))
-	}
+func getMD5(password string, token string) string {
+	h := hmac.New(md5.New, []byte(token))
+	h.Write([]byte(password))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
@@ -124,36 +123,37 @@ func getXEncode(msg string, key string) string {
 }
 
 func getBase64(s string) string {
-	b10 := 0
-	x := []string{}
 	imax := len(s) - len(s)%3
 
 	if len(s) == 0 {
 		return s
 	}
 
+	var result strings.Builder
+	result.Grow((len(s) + 2) / 3 * 4)
+
 	for i := 0; i < imax; i += 3 {
-		b10 = (int(s[i]) << 16) | (int(s[i+1]) << 8) | int(s[i+2])
-		x = append(x,
-			string(alpha[b10>>18]),
-			string(alpha[(b10>>12)&63]),
-			string(alpha[(b10>>6)&63]),
-			string(alpha[b10&63]),
-		)
+		b10 := (int(s[i]) << 16) | (int(s[i+1]) << 8) | int(s[i+2])
+		result.WriteByte(alpha[b10>>18])
+		result.WriteByte(alpha[(b10>>12)&63])
+		result.WriteByte(alpha[(b10>>6)&63])
+		result.WriteByte(alpha[b10&63])
 	}
 
 	i := imax
 	if len(s)-imax == 1 {
-		b10 = int(s[i]) << 16
-		x = append(x, string(alpha[b10>>18])+string(alpha[(b10>>12)&63])+padChar+padChar)
+		b10 := int(s[i]) << 16
+		result.WriteByte(alpha[b10>>18])
+		result.WriteByte(alpha[(b10>>12)&63])
+		result.WriteByte(padChar[0])
+		result.WriteByte(padChar[0])
 	} else if len(s)-imax == 2 {
-		b10 = (int(s[i]) << 16) | (int(s[i+1]) << 8)
-		x = append(x, string(alpha[b10>>18])+string(alpha[(b10>>12)&63])+string(alpha[(b10>>6)&63])+padChar)
+		b10 := (int(s[i]) << 16) | (int(s[i+1]) << 8)
+		result.WriteByte(alpha[b10>>18])
+		result.WriteByte(alpha[(b10>>12)&63])
+		result.WriteByte(alpha[(b10>>6)&63])
+		result.WriteByte(padChar[0])
 	}
 
-	result := ""
-	for _, s := range x {
-		result += s
-	}
-	return result
+	return result.String()
 }
