@@ -1,11 +1,7 @@
 # _*_ coding : utf-8 _*_
 import math
-import socket
 import hashlib
 import hmac
-import requests
-import time
-import re
 
 
 def force(msg):
@@ -102,8 +98,7 @@ def _getbyte(s, i):
     # print(s,' ',i)
     x = ord(s[i])
     if x > 255:
-        print("INVALID_CHARACTER_ERR: DOM Exception 5")
-        exit(0)
+        raise ValueError("INVALID_CHARACTER_ERR: DOM Exception 5")
     return x
 
 
@@ -141,119 +136,3 @@ def get_sha1(value):
 
 def get_md5(password, token):
     return hmac.new(token.encode(), password.encode(), hashlib.md5).hexdigest()
-
-
-header = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.26 Safari/537.36"
-}
-get_challenge_api = "http://172.19.0.5/cgi-bin/get_challenge"
-srun_portal_api = "http://172.19.0.5/cgi-bin/srun_portal"
-n = "200"
-type = "1"
-ac_id = "1"
-enc = "srun_bx1"
-
-
-def get_chksum():
-    chkstr = token + username
-    chkstr += token + hmd5
-    chkstr += token + ac_id
-    chkstr += token + ip
-    chkstr += token + n
-    chkstr += token + type
-    chkstr += token + i
-    return chkstr
-
-
-def get_info():
-    info_temp = {
-        "username": username,
-        "password": password,
-        "ip": ip,
-        "acid": ac_id,
-        "enc_ver": enc,
-    }
-    i = re.sub("'", '"', str(info_temp))
-    i = re.sub(" ", "", i)
-    return i
-
-
-def init_getip():
-    global ip
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-
-
-def get_token():
-    # print("获取token")
-    global token
-    get_challenge_params = {
-        "callback": "jQuery112406608265734960486_" + str(int(time.time() * 1000)),
-        "username": username,
-        "ip": ip,
-        "_": int(time.time() * 1000),
-    }
-    get_challenge_res = requests.get(
-        get_challenge_api, params=get_challenge_params, headers=header
-    )
-    token = re.search('"challenge":"(.*?)"', get_challenge_res.text).group(1)
-    print(get_challenge_res.text)
-    print("token为:" + token)
-
-
-def do_complex_work():
-    global i, hmd5, chksum
-    i = get_info()
-    i = "{SRBX1}" + get_base64(get_xencode(i, token))
-    hmd5 = get_md5(password, token)
-    chksum = get_sha1(get_chksum())
-    print("所有加密工作已完成")
-
-
-def login():
-    srun_portal_params = {
-        "callback": "jQuery11240645308969735664_" + str(int(time.time() * 1000)),
-        "action": "login",
-        "username": username,  # username,
-        "password": "{MD5}" + hmd5,
-        "ac_id": ac_id,
-        "ip": ip,
-        "chksum": chksum,
-        "info": i,
-        "n": n,
-        "type": type,
-        "os": "windows 10",
-        "name": "windows",
-        "double_stack": 0,
-        "_": int(time.time() * 1000),
-    }
-    print(srun_portal_params)
-    srun_portal_res = requests.get(
-        srun_portal_api, params=srun_portal_params, headers=header
-    )
-
-    if "ok" in srun_portal_res.text:
-        print("登录成功")
-        time.sleep(3)
-    else:
-        error_msg = eval(re.search("\((.*?)\)", srun_portal_res.text).group(1))
-        # 输出错误信息
-        print("error_type:" + error_msg["error"])
-        print(error_msg["error_msg"])
-        time.sleep(5)
-
-
-if __name__ == "__main__":
-    global username, password
-    username = "20@cucc"  # 你的用户名和密码，末尾加上@cmcc(移动) 或者@chinanet(电信)，@cucc(联通)
-    password = "Sztu@"
-    time.sleep(3)  # 开机自启时给电脑一点时间处理其它
-
-    init_getip()
-    get_token()
-    do_complex_work()
-    login()

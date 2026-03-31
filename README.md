@@ -1,68 +1,64 @@
 # SZTU-autologin
-SZTU深圳技术大学教学区自动登录脚本
+SZTU深圳技术大学校园网自动登录脚本 v2.0
 
 觉得好用不妨点个star😋
 
-## How to use?
+## 功能特性
 
-本脚本使用python编写，使用需要python基础。以vscode为例说明。
+- ✅ 支持宿舍区和教学区切换
+- ✅ 账号密码便捷配置
+- ✅ 命令行交互式菜单
+- ✅ 定时检测网络状态，掉网自动重连
+- ✅ Windows任务计划开机自启
+- ✅ 后台静默运行
+- ✅ 完整的日志系统
 
-1. 至少下载autologin.py和requirements.txt，电脑中安装了python和pip（这个一般python安装自带）。
+## 快速开始
 
-2. 在终端使用`pip install -r requirements.txt`来安装运行代码必须的模块（如果仍然提示模块缺失，可能是requirements没有添加全，请自行安装缺失的模块）。
+### 方式一：使用发布版本（推荐）
 
-3. 修改autologin.py中的学号和密码两行为自己的，**连接wifi后**即可运行。（更新后,请以实际代码提示为准）
+1. 从 [Releases](../../releases) 下载最新的 `SZTU-Autologin.exe`
+2. 双击运行，按提示完成配置
+3. 在菜单中启用开机自启
 
-4. 如果一点python都不会，也不想学，可以移步到后记的他人写好的软件，只需更改配置即可使用。
+### 方式二：从源码运行
 
-## Better use
+1. 克隆仓库，使用 `uv` 管理依赖：
 
-显然我们不想每次开机都先打开ide,然后再来运行登录程序(这和打开浏览器联网有什么区别)，因此我们需要将python程序**打包使用**,让电脑每次开机即可自动联网
+```bash
+uv sync
+uv run main.py
+```
 
-1. 安装pyinstaller
+### 方式三：打包为可执行文件
 
-   在vscode的终端运行
+```bash
+uv add pyinstaller
+uv run pyinstaller -F -w --name SZTU-Autologin main.py
+```
 
-   ```
-   pip install pyinstaller
-   ```
+## 使用说明
 
-2. 在终端中运行
+首次运行会进入配置向导，按提示输入：
+1. 学号
+2. 密码
+3. 选择运营商（联通/移动/电信）
+4. 选择区域（宿舍区/教学区）
 
-   ```
-   pyinstaller -F autologin.py
-   ```
+主菜单选项：
+- [1] 修改账号密码
+- [2] 切换区域
+- [3] 手动登录/注销
+- [4] 开关自动检测重连
+- [5] 开关开机自启
+- [6] 查看日志
+- [7] 测试当前连接
+- [0] 退出
 
-   即可生成一个会打开命令行的python程序了
+## 更新日志
 
-   若不想看见命令行，可以改用
+详见 [CHANGELOG.md](./CHANGELOG.md)
 
-   ```
-   pyinstaller -F -w autologin.py
-   ```
+## 致谢
 
-   [详细打包教程](https://blog.csdn.net/libaineu2004/article/details/112612421)
-
-3. 放入开机自启动任务，不过**请将wifi设置为自动连接**
-
-   [任务计划法](https://blog.csdn.net/baidu_38493460/article/details/118081809)
-
-   [开机文件夹法](https://jingyan.baidu.com/article/5d368d1ebfdf1a3f60c057f8.html)
-
-## Question
-
-在打包模块时可能会出现找不到文件的问题
-
-![image-20230512213139159](https://raw.githubusercontent.com/shadow-aaa/markdown_photo/main/PicGo/202305122131185.png)
-
-使用cd命令将终端路径切换到代码保存的文件夹
-
-如`cd D:\code`
-
-然后再次运行pyinstaller的打包命令即可解决问题
-
-也可参考前文的**详细打包教程**来解决问题
-
-## THE END
-
-本文代码来自[https://github.com/shadow-aaa/SZTU-autologin?tab=readme-ov-file](https://github.com/shadow-aaa/SZTU-autologin?tab=readme-ov-file)，进行了小幅修改，原理可看文章详情。同时深澜软件的联网软件可以看看[BitSrunLoginGo](https://github.com/Mmx233/BitSrunLoginGo)，支持多平台😉
+本项目基于 [shadow-aaa/SZTU-autologin](https://github.com/shadow-aaa/SZTU-autologin) 重构而来。
