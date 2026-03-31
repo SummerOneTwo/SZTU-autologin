@@ -4,124 +4,75 @@
 
 ## Project Overview
 
-SZTU (深圳技术大学) campus network auto-login tool. Python 3.10+, Windows-focused.
-Uses `uv` for dependency management. No test framework currently exists.
+SZTU (深圳技术大学) campus network auto-login tool. Go 1.23+, Windows-focused.
+Single binary with no external dependencies.
 
 ## Commands
 
-### Run
+### Build
 ```bash
-uv run main.py            # Interactive mode
-uv run main.py --silent   # Silent/background mode
+go build -o sztu-autologin.exe
 ```
 
-### Lint
+### Run
 ```bash
-uv run ruff check .       # Lint all files
-uv run ruff check --fix . # Auto-fix lint issues
+./sztu-autologin.exe setup     # Interactive configuration
+./sztu-autologin.exe login     # Login immediately
+./sztu-autologin.exe daemon    # Background mode with auto-reconnect
+./sztu-autologin.exe help      # Show help
+```
+
+### Autostart Management
+```bash
+./sztu-autologin.exe autostart on      # Enable auto-start on login
+./sztu-autologin.exe autostart off     # Disable auto-start
+./sztu-autologin.exe autostart status  # Check status
+```
+
+### Test
+```bash
+go test ./...
 ```
 
 ### Format
 ```bash
-uv run ruff format .      # Format all files
-```
-
-### Build (PyInstaller)
-```bash
-uv run build.py                              # Install deps + build exe
-uv run pyinstaller -F -w --name SZTU-Autologin main.py  # Direct build
-```
-
-### Dependencies
-```bash
-uv sync           # Install/sync dependencies
-uv add <package>  # Add a dependency
-```
-
-### Running a Single Test
-No test framework exists yet. To add tests, create files matching `test_*.py` or `*_test.py` and use `pytest` (add via `uv add --dev pytest`). Run with:
-```bash
-uv run pytest tests/test_file.py -v
+go fmt ./...
 ```
 
 ## Code Style
 
-### Imports
-Order: stdlib → third-party → local modules. Use blank line between groups.
-```python
-import json
-import socket
-from pathlib import Path
-
-import requests
-from colorama import Fore
-
-from core.config import ConfigManager
-from utils import network
-```
-
 ### Naming Conventions
-- **Classes**: PascalCase — `LoginEngine`, `ConfigManager`
-- **Functions/Methods**: snake_case — `get_token()`, `is_logged_in()`
-- **Variables**: snake_case — `check_interval`, `auto_reconnect`
-- **Constants**: UPPER_SNAKE_CASE — `DEFAULT_CONFIG`, `TASK_NAME`
-- **Private helpers**: leading underscore — `_get_chksum()`, `_validate_and_fix()`
-
-### Type Hints
-Use type hints on all function signatures and class attributes:
-```python
-def login(self) -> LoginResult:
-def is_logged_in(self) -> bool:
-def __init__(self, config_file: str = "config.json"):
-```
+- **Types/Structs**: PascalCase — `LoginEngine`, `Config`
+- **Functions/Methods**: PascalCase (exported) or camelCase (unexported)
+- **Variables**: camelCase — `checkInterval`, `autoReconnect`
+- **Constants**: PascalCase or UPPER_SNAKE_CASE — `DefaultConfig`, `TASK_NAME`
 
 ### Error Handling
-- Use `try/except` blocks; return `False`/`""`/`None` on failure for utility functions
-- Login operations return `LoginResult(success, message)` instead of raising
-- Catch broad `Exception` in outer loops; log and continue
-- Use `raise` for unrecoverable errors (e.g., `IOError` on config save failure)
+- Return errors as second return value
+- Use `fmt.Errorf` with `%w` for error wrapping
+- Main entry points should handle errors and exit with appropriate codes
 
-### Logging
-Use the `core.logger.Logger` class for all logging:
-```python
-self.logger.info("message")
-self.logger.warning("message")
-self.logger.error("message", exc)  # pass exception for stack trace
-self.logger.debug("message")
-```
-
-### Docstrings
-Chinese docstrings for public methods:
-```python
-def get_local_ip() -> str:
-    """获取本机IP地址"""
-```
-
-### Line Length & Formatting
-- Ruff handles formatting (`uv run ruff format .`)
-- Ruff lint rules: all default except `E741` (single-letter var names allowed for crypto code)
-- No explicit line length limit configured; keep lines reasonable
-
-### Class Design
-- Use `@classmethod` for factory/utility methods (see `TaskScheduler`)
-- Implement `__enter__`/`__exit__` for context managers (see `FileLock`)
-- Keep modules focused: `core/` for business logic, `utils/` for helpers
+### Comments
+- Exported functions should have doc comments
+- Chinese comments acceptable for domain-specific logic
 
 ### Module Structure
 ```
-core/       # Business logic (login, config, scheduling, etc.)
-utils/      # Low-level helpers (crypto, network)
-main.py     # CLI entry point
-build.py    # PyInstaller build script
-autologin.py # Legacy script (kept for reference, not imported)
+main.go              # Entry point, command routing
+config.go            # Configuration management
+login.go             # SRUN portal login logic
+daemon.go            # Background auto-reconnect
+cmd_setup.go         # Interactive setup command
+utils.go             # Crypto utilities (XEncode, MD5, SHA1, Base64)
+autostart_windows.go # Windows Task Scheduler integration
 ```
 
 ### Configuration
-- Config stored in `config.json` (gitignored)
-- Use `ConfigManager` for load/save/validate — never read/write config directly
-- `DEFAULT_CONFIG` defines the schema; `_validate_and_fix()` auto-repairs missing keys
+- Config stored in `config.json` (gitignored) next to executable
+- Password stored in plaintext (user decision)
+- Use `LoadConfig()` and `SaveConfig()` for config operations
 
 ### Platform
-- Windows-only (uses `schtasks`, `ctypes.windll.kernel32`)
+- Windows-only (uses `schtasks` for auto-start)
 - Shell: PowerShell 7
-- Lock file prevents concurrent instances
+- Build tag `//go:build windows` for Windows-specific code
