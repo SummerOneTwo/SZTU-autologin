@@ -18,6 +18,8 @@ func main() {
 		runLogin()
 	case "daemon":
 		runDaemon()
+	case "autostart":
+		runAutostart()
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -31,10 +33,11 @@ func printUsage() {
 	fmt.Println("SZTU 校园网自动登录工具")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  sztu-autologin setup    交互式配置")
-	fmt.Println("  sztu-autologin login    立即登录")
-	fmt.Println("  sztu-autologin daemon   后台运行（自动重连）")
-	fmt.Println("  sztu-autologin help     显示帮助")
+	fmt.Println("  sztu-autologin setup              交互式配置")
+	fmt.Println("  sztu-autologin login              立即登录")
+	fmt.Println("  sztu-autologin daemon             后台运行（自动重连）")
+	fmt.Println("  sztu-autologin autostart [on|off|status]  开机自启动管理")
+	fmt.Println("  sztu-autologin help               显示帮助")
 }
 
 func runLogin() {
@@ -59,5 +62,34 @@ func runLogin() {
 	} else {
 		fmt.Printf("✗ %s\n", result.Message)
 		os.Exit(1)
+	}
+}
+
+func runAutostart() {
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
+		return
+	}
+	switch os.Args[2] {
+	case "on":
+		if err := enableAutostart(); err != nil {
+			fmt.Fprintf(os.Stderr, "启用失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("开机自启动已启用")
+	case "off":
+		if err := disableAutostart(); err != nil {
+			fmt.Fprintf(os.Stderr, "禁用失败: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("开机自启动已禁用")
+	case "status":
+		if isAutostartEnabled() {
+			fmt.Println("开机自启动: 已启用")
+		} else {
+			fmt.Println("开机自启动: 未启用")
+		}
+	default:
+		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
 	}
 }
