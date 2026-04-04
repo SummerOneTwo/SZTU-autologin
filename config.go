@@ -22,7 +22,7 @@ func DefaultConfig() Config {
 		ISP:           "cucc",
 		Area:          "dormitory",
 		ACID:          "17",
-		AutoReconnect: true,
+		AutoReconnect: false,
 		CheckInterval: 300,
 	}
 }

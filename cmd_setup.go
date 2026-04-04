@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"golang.org/x/term"
 )
@@ -29,6 +31,15 @@ func readPassword(prompt string) (string, error) {
 }
 
 func runSetup() {
+	// 设置信号处理，允许用户通过 Ctrl+C 中断
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\n操作已取消")
+		os.Exit(0)
+	}()
+
 	cfg, err := LoadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v，将使用默认配置\n", err)

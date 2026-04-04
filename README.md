@@ -1,17 +1,19 @@
 # SZTU 校园网自动登录工具
 
-深圳技术大学校园网自动登录工具，Go 重构版本。
+深圳技术大学校园网自动登录工具，Windows 单文件 Go 版本。
 
 ## 功能
 
-- 交互式配置账号密码
-- 立即登录
-- 后台自动检测重连
-- Windows 开机自启动
+- 交互式主菜单与 `setup` 配置流程
+- 立即登录与后台自动重连
+- Windows 开机自启动管理
 
 ## 使用
 
 ```bash
+# 交互式主菜单
+sztu-autologin.exe
+
 # 首次配置
 sztu-autologin.exe setup
 
@@ -41,7 +43,7 @@ sztu-autologin.exe help
   "isp": "cucc",
   "area": "dormitory",
   "ac_id": "17",
-  "auto_reconnect": true,
+  "auto_reconnect": false,
   "check_interval": 300
 }
 ```
@@ -63,9 +65,23 @@ sztu-autologin.exe help
 go build -o sztu-autologin.exe
 ```
 
-## 体积
+## 测试
 
-编译后约 2-3MB，无额外依赖。
+```bash
+go test ./...
+```
+
+如果本机默认 `GOCACHE` 目录权限异常，可临时指定项目内缓存目录：
+
+```bash
+$env:GOCACHE = (Join-Path (Get-Location) ".gocache")
+go test ./...
+```
+
+## 行为说明
+
+- 默认关闭自动重连，避免首次配置后未经确认即进入守护模式。
+- 配置文件保存为 `0600` 权限，密码仍为明文存储。
 
 ## 从 Python 版本迁移
 

@@ -69,6 +69,9 @@ func lencode(msg []uint32, key bool) string {
 			byte((msg[i]>>24)&0xFF),
 		)
 	}
+	if !key {
+		return string(result)
+	}
 	return string(result[:totalLen])
 }
 

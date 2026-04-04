@@ -7,15 +7,25 @@ import (
 	"strings"
 )
 
-const Version = "v3.0.0"
+type cliArgs struct {
+	command string
+	action  string
+}
+
+type menuStatus struct {
+	onCampus         bool
+	loggedIn         bool
+	autostartEnabled bool
+}
 
 func main() {
-	if len(os.Args) < 2 {
+	args := parseCLIArgs(os.Args[1:])
+	if args.command == "" {
 		runInteractive()
 		return
 	}
 
-	switch os.Args[1] {
+	switch args.command {
 	case "setup":
 		runSetup()
 	case "login":
@@ -23,14 +33,32 @@ func main() {
 	case "daemon":
 		runDaemon()
 	case "autostart":
-		runAutostart()
+		runAutostart(args.action)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", args.command)
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+func parseCLIArgs(rawArgs []string) cliArgs {
+	parsed := cliArgs{}
+	nonFlagArgs := make([]string, 0, len(rawArgs))
+
+	for _, arg := range rawArgs {
+		nonFlagArgs = append(nonFlagArgs, arg)
+	}
+
+	if len(nonFlagArgs) > 0 {
+		parsed.command = nonFlagArgs[0]
+	}
+	if parsed.command == "autostart" && len(nonFlagArgs) > 1 {
+		parsed.action = nonFlagArgs[1]
+	}
+
+	return parsed
 }
 
 func runInteractive() {
@@ -49,8 +77,11 @@ func runInteractive() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		showStatus(cfg)
-		showMenu()
+		clearScreen()
+
+		status := collectMenuStatus()
+		showStatus(cfg, status)
+		showMenu(cfg, status)
 		fmt.Print("输入选项: ")
 		choice, err := reader.ReadString('\n')
 		if err != nil {
@@ -67,11 +98,14 @@ func runInteractive() {
 				fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 			}
 		case "2":
-			runLogin()
+			doLogin(cfg)
 		case "3":
 			toggleAutoReconnect(&cfg)
 		case "4":
-			runAutostartInteractive()
+			toggleAutostart()
+		case "5":
+			// 刷新状态，直接进入下一次循环
+			continue
 		case "0":
 			fmt.Println("再见！")
 			return
@@ -79,7 +113,7 @@ func runInteractive() {
 			fmt.Println("无效选项")
 		}
 
-		if choice != "0" {
+		if choice != "0" && choice != "5" {
 			fmt.Print("\n按回车继续...")
 			_, err = reader.ReadString('\n')
 			if err != nil {
@@ -89,22 +123,83 @@ func runInteractive() {
 	}
 }
 
-func showStatus(cfg Config) {
+func collectMenuStatus() menuStatus {
+	return menuStatus{
+		onCampus:         isOnCampusNetwork(),
+		loggedIn:         isLoggedIn(),
+		autostartEnabled: isAutostartEnabled(),
+	}
+}
+
+func showStatus(cfg Config, status menuStatus) {
 	fmt.Println("\n=======================================")
-	fmt.Printf("    SZTU 校园网自动登录工具 %s\n", Version)
+	fmt.Println("    SZTU 校园网自动登录工具")
 	fmt.Println("=======================================")
-	fmt.Printf("用户名: %s\n", cfg.Username)
-	fmt.Printf("运营商: %s\n", getISPName(cfg.ISP))
-	fmt.Printf("区域: %s\n", getAreaName(cfg.Area))
-	fmt.Printf("自动重连: %v\n", cfg.AutoReconnect)
+
+	autostartStatus := "未启用"
+	if status.autostartEnabled {
+		autostartStatus = "已启用"
+	}
+
+	fmt.Printf("网络状态: %s\n", getNetworkStatus(status))
+	fmt.Printf("开机自启: %s\n", autostartStatus)
+
+	if cfg.Username == "" {
+		fmt.Println("配置状态: 未配置")
+	} else {
+		fmt.Printf("账号: %s (%s)\n", cfg.Username, getISPName(cfg.ISP))
+		fmt.Printf("自动重连: %s\n", boolToStatus(cfg.AutoReconnect))
+	}
+
 	fmt.Println("---------------------------------------")
 }
 
-func showMenu() {
+func clearScreen() {
+	fmt.Print("\033[2J\033[H")
+}
+
+func getNetworkStatus(status menuStatus) string {
+	if status.onCampus {
+		if status.loggedIn {
+			return "已连接 (校园网已登录)"
+		}
+		return "未登录 (已连接校园网)"
+	}
+	if status.loggedIn {
+		return "已连接 (外网)"
+	}
+	return "未连接"
+}
+
+func boolToStatus(b bool) string {
+	if b {
+		return "已启用"
+	}
+	return "已禁用"
+}
+
+func showMenu(cfg Config, status menuStatus) {
 	fmt.Println("\n[1] 修改账号密码")
-	fmt.Println("[2] 立即登录")
-	fmt.Println("[3] 开关自动重连")
-	fmt.Println("[4] 开机自启动管理")
+
+	if status.onCampus && status.loggedIn {
+		fmt.Println("[2] 重新登录")
+	} else {
+		fmt.Println("[2] 立即登录")
+	}
+
+	if cfg.AutoReconnect {
+		fmt.Println("[3] 关闭自动重连")
+	} else {
+		fmt.Println("[3] 开启自动重连")
+	}
+
+	if status.autostartEnabled {
+		fmt.Println("[4] 关闭开机自启")
+	} else {
+		fmt.Println("[4] 开启开机自启")
+	}
+
+	fmt.Println("[5] 刷新状态")
 	fmt.Println("[0] 退出")
 }
 
@@ -120,81 +215,64 @@ func getISPName(isp string) string {
 	return isp
 }
 
-func getAreaName(area string) string {
-	names := map[string]string{
-		"dormitory": "宿舍区",
-		"teaching":  "教学区",
-	}
-	if name, ok := names[area]; ok {
-		return name
-	}
-	return area
-}
-
 func toggleAutoReconnect(cfg *Config) {
 	cfg.AutoReconnect = !cfg.AutoReconnect
 	if err := SaveConfig(*cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		return
 	}
-	status := "已启用"
-	if !cfg.AutoReconnect {
-		status = "已禁用"
-	}
-	fmt.Printf("自动重连 %s\n", status)
+	fmt.Printf("自动重连 %s\n", boolToStatus(cfg.AutoReconnect))
 }
 
-func runAutostartInteractive() {
-	fmt.Println("\n开机自启动管理:")
-	fmt.Println("  [1] 启用")
-	fmt.Println("  [2] 禁用")
-	fmt.Println("  [3] 查看状态")
-	fmt.Print("> 选择: ")
-
-	reader := bufio.NewReader(os.Stdin)
-	choice, err := reader.ReadString('\n')
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
-		return
+func toggleAutostart() {
+	enabled := isAutostartEnabled()
+	if enabled {
+		if err := disableAutostart(); err != nil {
+			fmt.Fprintf(os.Stderr, "关闭失败: %v\n", err)
+			return
+		}
+		fmt.Println("开机自启已关闭")
+	} else {
+		if err := enableAutostart(); err != nil {
+			fmt.Fprintf(os.Stderr, "开启失败: %v\n", err)
+			return
+		}
+		fmt.Println("开机自启已开启")
 	}
-	choice = strings.TrimSpace(choice)
+}
 
-	var action string
-	switch choice {
-	case "1":
-		action = "on"
-	case "2":
-		action = "off"
-	case "3":
-		action = "status"
-	default:
-		fmt.Println("无效选项")
+func doLogin(cfg Config) {
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "配置无效: %v\n", err)
+		fmt.Fprintln(os.Stderr, "请先选择 [1] 修改账号密码")
 		return
 	}
 
-	handleAutostartAction(action, true)
+	fmt.Printf("正在登录 [%s - %s]...\n", cfg.Username, getISPName(cfg.ISP))
+	engine := NewLoginEngine(cfg)
+	result := engine.Login()
+
+	if result.Success {
+		fmt.Printf("✓ %s\n", result.Message)
+	} else {
+		fmt.Printf("✗ %s\n", result.Message)
+	}
 }
 
-func handleAutostartAction(action string, interactive bool) {
+func handleAutostartAction(action string) int {
 	switch action {
 	case "on":
 		if err := enableAutostart(); err != nil {
 			fmt.Fprintf(os.Stderr, "启用失败: %v\n", err)
-			if !interactive {
-				os.Exit(1)
-			}
-		} else {
-			fmt.Println("开机自启动已启用")
+			return 1
 		}
+		fmt.Println("开机自启动已启用")
 	case "off":
 		if err := disableAutostart(); err != nil {
 			fmt.Fprintf(os.Stderr, "禁用失败: %v\n", err)
-			if !interactive {
-				os.Exit(1)
-			}
-		} else {
-			fmt.Println("开机自启动已禁用")
+			return 1
 		}
+		fmt.Println("开机自启动已禁用")
 	case "status":
 		if isAutostartEnabled() {
 			fmt.Println("开机自启动: 已启用")
@@ -202,6 +280,7 @@ func handleAutostartAction(action string, interactive bool) {
 			fmt.Println("开机自启动: 未启用")
 		}
 	}
+	return 0
 }
 
 func waitExit() {
@@ -213,11 +292,12 @@ func printUsage() {
 	fmt.Println("SZTU 校园网自动登录工具")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  sztu-autologin setup              交互式配置")
-	fmt.Println("  sztu-autologin login              立即登录")
-	fmt.Println("  sztu-autologin daemon             后台运行（自动重连）")
+	fmt.Println("  sztu-autologin              交互式菜单")
+	fmt.Println("  sztu-autologin setup        交互式配置")
+	fmt.Println("  sztu-autologin login        立即登录")
+	fmt.Println("  sztu-autologin daemon       后台运行（自动重连）")
 	fmt.Println("  sztu-autologin autostart [on|off|status]  开机自启动管理")
-	fmt.Println("  sztu-autologin help               显示帮助")
+	fmt.Println("  sztu-autologin help         显示帮助")
 }
 
 func runLogin() {
@@ -233,7 +313,7 @@ func runLogin() {
 		os.Exit(1)
 	}
 
-	fmt.Println("正在登录...")
+	fmt.Printf("正在登录 [%s - %s]...\n", cfg.Username, getISPName(cfg.ISP))
 	engine := NewLoginEngine(cfg)
 	result := engine.Login()
 
@@ -245,15 +325,14 @@ func runLogin() {
 	}
 }
 
-func runAutostart() {
-	if len(os.Args) < 3 {
+func runAutostart(action string) {
+	if action == "" {
 		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
 		return
 	}
-	action := os.Args[2]
 	if action != "on" && action != "off" && action != "status" {
 		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
 		return
 	}
-	handleAutostartAction(action, false)
+	os.Exit(handleAutostartAction(action))
 }

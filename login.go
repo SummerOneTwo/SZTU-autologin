@@ -26,6 +26,16 @@ var (
 	reQuote     = regexp.MustCompile(`'`)
 )
 
+// 创建带User-Agent的请求
+func newRequest(method, url string) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	return req, nil
+}
+
 type LoginResult struct {
 	Success bool
 	Message string
@@ -39,12 +49,18 @@ type LoginEngine struct {
 	i      string
 	hmd5   string
 	chksum string
+	n      string
+	typ    string
+	enc    string
 }
 
 func NewLoginEngine(cfg Config) *LoginEngine {
 	return &LoginEngine{
 		config: cfg,
 		acID:   cfg.ACID,
+		n:      "200",
+		typ:    "1",
+		enc:    "srun_bx1",
 	}
 }
 
@@ -71,7 +87,13 @@ func (e *LoginEngine) getToken() error {
 		"_":        {timestamp},
 	}
 
-	resp, err := HTTPClient.Get(getChallengeAPI + "?" + params.Encode())
+	requestURL := getChallengeAPI + "?" + params.Encode()
+
+	req, err := newRequest("GET", requestURL)
+	if err != nil {
+		return err
+	}
+	resp, err := HTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -81,7 +103,9 @@ func (e *LoginEngine) getToken() error {
 	if err != nil {
 		return fmt.Errorf("读取响应失败: %w", err)
 	}
-	matches := reChallenge.FindStringSubmatch(string(body))
+	bodyStr := string(body)
+
+	matches := reChallenge.FindStringSubmatch(bodyStr)
 	if len(matches) < 2 {
 		return fmt.Errorf("无法获取 challenge token")
 	}
@@ -89,23 +113,35 @@ func (e *LoginEngine) getToken() error {
 	return nil
 }
 
-func (e *LoginEngine) doComplexWork() error {
-	info := map[string]string{
-		"username": e.config.GetFullUsername(),
-		"password": e.config.Password,
-		"ip":       e.ip,
-		"acid":     e.acID,
-		"enc_ver":  "srun_bx1",
-	}
-	infoJSON, err := json.Marshal(info)
-	if err != nil {
-		return fmt.Errorf("JSON序列化失败: %w", err)
-	}
-	e.i = "{SRBX1}" + getBase64(getXEncode(string(infoJSON), e.token))
-	e.hmd5 = getMD5(e.config.Password, e.token)
+func (e *LoginEngine) getInfo() string {
+	// 手动构建JSON以保持正确的键顺序：username, password, ip, acid, enc_ver
+	return fmt.Sprintf(`{"username":"%s","password":"%s","ip":"%s","acid":"%s","enc_ver":"%s"}`,
+		e.config.GetFullUsername(),
+		e.config.Password,
+		e.ip,
+		e.acID,
+		e.enc,
+	)
+}
 
-	chkstr := e.token + e.config.GetFullUsername() + e.token + e.hmd5 +
-		e.token + e.acID + e.token + e.ip + e.token + "200" + e.token + "1" + e.token + e.i
+// getChksum 生成校验字符串 - 与原始Python版本 get_chksum 完全一致
+func (e *LoginEngine) getChksum() string {
+	// 原始Python版本: token + username + token + hmd5 + token + ac_id + token + ip + token + n + token + type + token + i
+	chkstr := e.token + e.config.GetFullUsername()
+	chkstr += e.token + e.hmd5
+	chkstr += e.token + e.acID
+	chkstr += e.token + e.ip
+	chkstr += e.token + e.n
+	chkstr += e.token + e.typ
+	chkstr += e.token + e.i
+	return chkstr
+}
+
+func (e *LoginEngine) doComplexWork() error {
+	infoStr := e.getInfo()
+	e.i = "{SRBX1}" + getBase64(getXEncode(infoStr, e.token))
+	e.hmd5 = getMD5(e.config.Password, e.token)
+	chkstr := e.getChksum()
 	e.chksum = getSHA1(chkstr)
 	return nil
 }
@@ -124,24 +160,30 @@ func (e *LoginEngine) Login() LoginResult {
 	}
 
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
-	params := url.Values{
-		"callback":     {fmt.Sprintf("jQuery11240645308969735664_%s", timestamp)},
-		"action":       {"login"},
-		"username":     {e.config.GetFullUsername()},
-		"password":     {"{MD5}" + e.hmd5},
-		"ac_id":        {e.acID},
-		"ip":           {e.ip},
-		"chksum":       {e.chksum},
-		"info":         {e.i},
-		"n":            {"200"},
-		"type":         {"1"},
-		"os":           {"windows 10"},
-		"name":         {"windows"},
-		"double_stack": {"0"},
-		"_":            {timestamp},
-	}
 
-	resp, err := HTTPClient.Get(srunPortalAPI + "?" + params.Encode())
+	// 手动构建 URL，确保 + 号不被编码
+	// Python requests 库不会编码 + 号，但 Go 的 url.Values.Encode() 会
+	// 注意：os 参数应该是 "windows 10"，requests 会将空格编码为 %20
+	params := fmt.Sprintf("callback=jQuery11240645308969735664_%s&action=login&username=%s&password={MD5}%s&ac_id=%s&ip=%s&chksum=%s&info=%s&n=%s&type=%s&os=windows%%2010&name=windows&double_stack=0&_=%s",
+		timestamp,
+		url.QueryEscape(e.config.GetFullUsername()),
+		e.hmd5,
+		e.acID,
+		e.ip,
+		e.chksum,
+		url.QueryEscape(e.i),
+		e.n,
+		e.typ,
+		timestamp,
+	)
+
+	requestURL := srunPortalAPI + "?" + params
+
+	req, err := newRequest("GET", requestURL)
+	if err != nil {
+		return LoginResult{false, "创建请求失败: " + err.Error()}
+	}
+	resp, err := HTTPClient.Do(req)
 	if err != nil {
 		return LoginResult{false, "请求失败: " + err.Error()}
 	}
@@ -160,9 +202,14 @@ func (e *LoginEngine) Login() LoginResult {
 	matches := reJSONP.FindStringSubmatch(bodyStr)
 	if len(matches) >= 2 {
 		jsonStr := reQuote.ReplaceAllString(matches[1], `"`)
-		var errData map[string]interface{}
+		var errData map[string]any
 		if err := json.Unmarshal([]byte(jsonStr), &errData); err == nil {
-			return LoginResult{false, fmt.Sprintf("%v: %v", errData["error"], errData["error_msg"])}
+			errorCode, _ := errData["error"].(string)
+			errorMsg, _ := errData["error_msg"].(string)
+			if errorMsg != "" {
+				return LoginResult{false, fmt.Sprintf("%s: %s", errorCode, errorMsg)}
+			}
+			return LoginResult{false, fmt.Sprintf("错误码: %s", errorCode)}
 		}
 	}
 

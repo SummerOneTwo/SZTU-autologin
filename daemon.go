@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -17,6 +18,13 @@ const (
 
 var (
 	DaemonClient = &http.Client{Timeout: 5 * time.Second}
+	// 不自动跟随重定向的客户端，用于检测是否被劫持
+	NoRedirectClient = &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 )
 
 func isOnCampusNetwork() bool {
@@ -29,13 +37,23 @@ func isOnCampusNetwork() bool {
 	return resp.StatusCode == 200
 }
 
+// isLoggedIn 检查是否已登录校园网
+// 未认证时访问外网会被重定向到登录页面，需要检测这种情况
 func isLoggedIn() bool {
-	resp, err := DaemonClient.Get(internetCheckURL)
+	resp, err := NoRedirectClient.Get(internetCheckURL)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode == 302 || resp.StatusCode == 301 {
+		location := resp.Header.Get("Location")
+		if strings.Contains(location, "172.19.0.5") || strings.Contains(location, "srun") {
+			return false
+		}
+	}
+
 	return resp.StatusCode == 200
 }
 
@@ -57,8 +75,14 @@ func runDaemon() {
 		return
 	}
 
-	fmt.Printf("后台守护进程启动，检测间隔: %d秒\n", cfg.CheckInterval)
+	fmt.Println("=======================================")
+	fmt.Println("    SZTU 校园网自动登录 - 守护进程")
+	fmt.Println("=======================================")
+	fmt.Printf("用户: %s (%s)\n", cfg.Username, getISPName(cfg.ISP))
+	fmt.Printf("检测间隔: %d 秒\n", cfg.CheckInterval)
+	fmt.Println("---------------------------------------")
 	fmt.Println("按 Ctrl+C 停止")
+	fmt.Println()
 
 	engine := NewLoginEngine(cfg)
 	consecutiveFailures := 0
