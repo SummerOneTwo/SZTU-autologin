@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.1.0] - 2026-04-07
+
+### Features
+- 后台静默运行：守护进程支持 `-hide` 参数隐藏控制台窗口
+- 新增 `stop` 命令：通过进程名查找并终止守护进程
+- 开机自启任务自动添加 `-hide` 参数，实现完全无感知后台运行
+
+### Design Rationale
+- 使用 Windows API `ShowWindow(GetConsoleWindow(), SW_HIDE)` 隐藏窗口
+- `-hide` 参数仅在 `daemon` 命令时生效，避免交互模式误用
+- `stopDaemon()` 使用 `tasklist`/`taskkill` 实现，跨平台兼容通过编译标签处理
+
+### Notes & Caveats
+- 用户手动运行 `daemon` 时窗口可见，便于调试
+- 开机自启后守护进程完全静默，无窗口弹出
+
 ## [3.0.1] - 2026-04-04
 
 ### Features

@@ -10,6 +10,7 @@ import (
 type cliArgs struct {
 	command string
 	action  string
+	hide    bool
 }
 
 type menuStatus struct {
@@ -20,6 +21,10 @@ type menuStatus struct {
 
 func main() {
 	args := parseCLIArgs(os.Args[1:])
+	// 仅在 daemon 命令时隐藏窗口，交互模式不支持 -hide
+	if args.hide && args.command == "daemon" {
+		hideConsoleWindow()
+	}
 	if args.command == "" {
 		runInteractive()
 		return
@@ -32,6 +37,8 @@ func main() {
 		runLogin()
 	case "daemon":
 		runDaemon()
+	case "stop":
+		stopDaemon()
 	case "autostart":
 		runAutostart(args.action)
 	case "help", "-h", "--help":
@@ -48,7 +55,11 @@ func parseCLIArgs(rawArgs []string) cliArgs {
 	nonFlagArgs := make([]string, 0, len(rawArgs))
 
 	for _, arg := range rawArgs {
-		nonFlagArgs = append(nonFlagArgs, arg)
+		if arg == "-hide" {
+			parsed.hide = true
+		} else {
+			nonFlagArgs = append(nonFlagArgs, arg)
+		}
 	}
 
 	if len(nonFlagArgs) > 0 {
@@ -296,6 +307,8 @@ func printUsage() {
 	fmt.Println("  sztu-autologin setup        交互式配置")
 	fmt.Println("  sztu-autologin login        立即登录")
 	fmt.Println("  sztu-autologin daemon       后台运行（自动重连）")
+	fmt.Println("  sztu-autologin daemon -hide 后台静默运行（隐藏窗口）")
+	fmt.Println("  sztu-autologin stop         停止守护进程")
 	fmt.Println("  sztu-autologin autostart [on|off|status]  开机自启动管理")
 	fmt.Println("  sztu-autologin help         显示帮助")
 }
