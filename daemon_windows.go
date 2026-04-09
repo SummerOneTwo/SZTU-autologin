@@ -20,6 +20,9 @@ var (
 const SW_HIDE = 0
 
 func hideConsoleWindow() {
+	defer func() {
+		recover()
+	}()
 	hwnd, _, _ := procGetConsoleWindow.Call()
 	if hwnd != 0 {
 		procShowWindow.Call(hwnd, SW_HIDE)
