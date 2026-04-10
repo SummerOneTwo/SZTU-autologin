@@ -115,9 +115,10 @@ func startDaemonHidden() error {
 		return fmt.Errorf("守护进程已在运行")
 	}
 
-	// 使用 cmd /c start 来启动完全独立的进程
-	// 这样父进程退出时子进程不会被终止
-	cmd := exec.Command("cmd", "/c", "start", "/b", "", exePath, "daemon", "-hide")
+	// 使用 cmd /c start 启动完全独立的进程
+	// 不使用 /b 参数，让子进程拥有独立的控制台窗口
+	// 配合 -hide 参数在子进程内部隐藏窗口
+	cmd := exec.Command("cmd", "/c", "start", "", exePath, "daemon", "-hide")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
 	}
