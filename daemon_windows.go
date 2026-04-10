@@ -20,9 +20,6 @@ var (
 
 const SW_HIDE = 0
 
-// Windows 进程创建标志
-const DETACHED_PROCESS = 0x00000008
-
 func hideConsoleWindow() {
 	defer func() {
 		recover()
@@ -34,6 +31,47 @@ func hideConsoleWindow() {
 }
 
 func isDaemonRunning() bool {
+	exePath, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	exeName := strings.ToLower(filepath.Base(exePath))
+	currentPid := os.Getpid()
+
+	// 使用 WMIC 获取进程命令行，以区分 daemon 和其他子命令
+	cmd := exec.Command("wmic", "process", "where", fmt.Sprintf("name='%s'", exeName), "get", "processid,commandline", "/format:csv")
+	output, err := cmd.Output()
+	if err != nil {
+		// WMIC 失败时回退到简单检测
+		return isDaemonRunningSimple()
+	}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "Node,") || strings.HasPrefix(line, "CommandLine") {
+			continue
+		}
+		// CSV 格式: Node,CommandLine,ProcessId
+		fields := strings.Split(line, ",")
+		if len(fields) < 3 {
+			continue
+		}
+		cmdLine := fields[1]
+		pid := strings.TrimSpace(fields[2])
+		if pid == "" || pid == fmt.Sprintf("%d", currentPid) {
+			continue
+		}
+		// 检查命令行是否包含 daemon 参数
+		if strings.Contains(cmdLine, " daemon") {
+			return true
+		}
+	}
+	return false
+}
+
+// isDaemonRunningSimple 是 WMIC 不可用时的简单回退检测
+func isDaemonRunningSimple() bool {
 	exePath, err := os.Executable()
 	if err != nil {
 		return false
