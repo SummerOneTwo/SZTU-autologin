@@ -75,6 +75,15 @@ func runDaemon() {
 		return
 	}
 
+	// 确保退出时更新配置为 false
+	defer func() {
+		updatedCfg, err := LoadConfig()
+		if err == nil {
+			updatedCfg.AutoReconnect = false
+			SaveConfig(updatedCfg)
+		}
+	}()
+
 	fmt.Println("=======================================")
 	fmt.Println("    SZTU 校园网自动登录 - 守护进程")
 	fmt.Println("=======================================")

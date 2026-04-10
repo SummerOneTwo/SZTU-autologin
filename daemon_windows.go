@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var (
@@ -19,6 +20,9 @@ var (
 
 const SW_HIDE = 0
 
+// Windows 进程创建标志
+const DETACHED_PROCESS = 0x00000008
+
 func hideConsoleWindow() {
 	defer func() {
 		recover()
@@ -27,6 +31,75 @@ func hideConsoleWindow() {
 	if hwnd != 0 {
 		procShowWindow.Call(hwnd, SW_HIDE)
 	}
+}
+
+func isDaemonRunning() bool {
+	exePath, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	exeName := strings.ToLower(filepath.Base(exePath))
+	currentPid := os.Getpid()
+
+	cmd := exec.Command("tasklist", "/fo", "csv", "/nh")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Split(line, ",")
+		if len(fields) < 2 {
+			continue
+		}
+		name := strings.Trim(fields[0], `"`)
+		pid := strings.Trim(fields[1], `"`)
+		if strings.ToLower(name) == exeName && pid != fmt.Sprintf("%d", currentPid) {
+			return true
+		}
+	}
+	return false
+}
+
+func startDaemonHidden() error {
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("获取程序路径失败: %w", err)
+	}
+
+	// 先检查当前是否有守护进程在运行
+	if isDaemonRunning() {
+		return fmt.Errorf("守护进程已在运行")
+	}
+
+	// 使用 cmd /c start 来启动完全独立的进程
+	// 这样父进程退出时子进程不会被终止
+	cmd := exec.Command("cmd", "/c", "start", "/b", "", exePath, "daemon", "-hide")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: true,
+	}
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("启动进程失败: %w", err)
+	}
+
+	// 等待进程启动
+	time.Sleep(2 * time.Second)
+
+	// 检查进程是否仍在运行
+	if !isDaemonRunning() {
+		return fmt.Errorf("守护进程启动后立即退出")
+	}
+
+	return nil
 }
 
 func stopDaemon() {

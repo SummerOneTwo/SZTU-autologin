@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type cliArgs struct {
@@ -41,6 +42,8 @@ func main() {
 		stopDaemon()
 	case "autostart":
 		runAutostart(args.action)
+	case "autostart-launch":
+		runAutostartLaunch()
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -78,6 +81,12 @@ func runInteractive() {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		waitExit()
 		return
+	}
+
+	// 检查配置与进程状态一致性：配置为 true 但进程不存在时，修正配置
+	if cfg.AutoReconnect && !isDaemonRunning() {
+		cfg.AutoReconnect = false
+		SaveConfig(cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -227,12 +236,44 @@ func getISPName(isp string) string {
 }
 
 func toggleAutoReconnect(cfg *Config) {
-	cfg.AutoReconnect = !cfg.AutoReconnect
-	if err := SaveConfig(*cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
-		return
+	newState := !cfg.AutoReconnect
+
+	if newState {
+		// 开启：保存配置 + 启动后台静默守护进程
+		cfg.AutoReconnect = true
+		if err := SaveConfig(*cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+			return
+		}
+
+		fmt.Println("正在启动守护进程...")
+		if err := startDaemonHidden(); err != nil {
+			fmt.Fprintf(os.Stderr, "启动守护进程失败: %v\n", err)
+			// 回滚配置
+			cfg.AutoReconnect = false
+			SaveConfig(*cfg)
+			return
+		}
+
+		// 再次检查进程是否真的在运行
+		time.Sleep(500 * time.Millisecond)
+		if !isDaemonRunning() {
+			fmt.Fprintf(os.Stderr, "守护进程启动后未检测到运行\n")
+			cfg.AutoReconnect = false
+			SaveConfig(*cfg)
+			return
+		}
+		fmt.Println("自动重连已启用（后台运行中）")
+	} else {
+		// 关闭：保存配置 + 停止守护进程
+		cfg.AutoReconnect = false
+		if err := SaveConfig(*cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+			return
+		}
+		stopDaemon()
+		fmt.Println("自动重连已关闭")
 	}
-	fmt.Printf("自动重连 %s\n", boolToStatus(cfg.AutoReconnect))
 }
 
 func toggleAutostart() {
@@ -336,6 +377,22 @@ func runLogin() {
 		fmt.Printf("✗ %s\n", result.Message)
 		os.Exit(1)
 	}
+}
+
+func runAutostartLaunch() {
+	// 开机自启动时，将配置改为 true 并启动守护进程
+	cfg, err := LoadConfig()
+	if err != nil {
+		return
+	}
+	cfg.AutoReconnect = true
+	if err := SaveConfig(cfg); err != nil {
+		return
+	}
+
+	// 隐藏窗口后启动守护进程
+	hideConsoleWindow()
+	runDaemon()
 }
 
 func runAutostart(action string) {
