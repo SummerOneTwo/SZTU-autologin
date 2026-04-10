@@ -66,7 +66,7 @@ func enableAutostart() error {
 	args := []string{
 		"/create",
 		"/tn", taskName,
-		"/tr", fmt.Sprintf(`"%s" daemon -hide`, exePath),
+		"/tr", fmt.Sprintf(`"%s" autostart-launch`, exePath),
 		"/sc", "onlogon",
 		"/f",
 	}

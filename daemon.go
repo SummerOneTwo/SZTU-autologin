@@ -75,6 +75,19 @@ func runDaemon() {
 		return
 	}
 
+	// 确保退出时更新配置为 false
+	defer func() {
+		updatedCfg, err := LoadConfig()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "退出时加载配置失败: %v\n", err)
+			return
+		}
+		updatedCfg.AutoReconnect = false
+		if err := SaveConfig(updatedCfg); err != nil {
+			fmt.Fprintf(os.Stderr, "退出时保存配置失败: %v\n", err)
+		}
+	}()
+
 	fmt.Println("=======================================")
 	fmt.Println("    SZTU 校园网自动登录 - 守护进程")
 	fmt.Println("=======================================")

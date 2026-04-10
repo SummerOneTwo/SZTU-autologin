@@ -41,6 +41,8 @@ func main() {
 		stopDaemon()
 	case "autostart":
 		runAutostart(args.action)
+	case "autostart-launch":
+		runAutostartLaunch()
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -78,6 +80,19 @@ func runInteractive() {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		waitExit()
 		return
+	}
+
+	// 检查配置与进程状态一致性
+	daemonRunning := isDaemonRunning()
+	if cfg.AutoReconnect && !daemonRunning {
+		// 配置为 true 但进程不存在 → 修正配置
+		cfg.AutoReconnect = false
+		if err := SaveConfig(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "修正配置失败: %v\n", err)
+		}
+	} else if !cfg.AutoReconnect && daemonRunning {
+		// 配置为 false 但守护进程仍在运行 → 停止守护进程
+		stopDaemon()
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -227,12 +242,47 @@ func getISPName(isp string) string {
 }
 
 func toggleAutoReconnect(cfg *Config) {
-	cfg.AutoReconnect = !cfg.AutoReconnect
-	if err := SaveConfig(*cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
-		return
+	newState := !cfg.AutoReconnect
+
+	if newState {
+		// 开启：检查守护进程是否已在运行
+		if isDaemonRunning() {
+			// 守护进程已在运行，只需更新配置
+			cfg.AutoReconnect = true
+			if err := SaveConfig(*cfg); err != nil {
+				fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+				return
+			}
+			fmt.Println("自动重连已启用（守护进程已在运行）")
+			return
+		}
+
+		// 保存配置并启动守护进程
+		cfg.AutoReconnect = true
+		if err := SaveConfig(*cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+			return
+		}
+
+		fmt.Println("正在启动守护进程...")
+		if err := startDaemonHidden(); err != nil {
+			fmt.Fprintf(os.Stderr, "启动守护进程失败: %v\n", err)
+			// 回滚配置
+			cfg.AutoReconnect = false
+			SaveConfig(*cfg)
+			return
+		}
+		fmt.Println("自动重连已启用（后台运行中）")
+	} else {
+		// 关闭：保存配置 + 停止守护进程
+		cfg.AutoReconnect = false
+		if err := SaveConfig(*cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+			return
+		}
+		stopDaemon()
+		fmt.Println("自动重连已关闭")
 	}
-	fmt.Printf("自动重连 %s\n", boolToStatus(cfg.AutoReconnect))
 }
 
 func toggleAutostart() {
@@ -336,6 +386,37 @@ func runLogin() {
 		fmt.Printf("✗ %s\n", result.Message)
 		os.Exit(1)
 	}
+}
+
+func runAutostartLaunch() {
+	// 开机自启动时，先验证配置
+	cfg, err := LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return
+	}
+
+	// 验证配置有效性
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "配置无效: %v\n", err)
+		return
+	}
+
+	// 检查守护进程是否已在运行
+	if isDaemonRunning() {
+		return // 守护进程已运行，无需重复启动
+	}
+
+	// 写入配置并启动守护进程
+	cfg.AutoReconnect = true
+	if err := SaveConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "保存配置失败: %v\n", err)
+		return
+	}
+
+	// 隐藏窗口后启动守护进程
+	hideConsoleWindow()
+	runDaemon()
 }
 
 func runAutostart(action string) {
