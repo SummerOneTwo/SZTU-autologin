@@ -20,6 +20,9 @@ var (
 
 const SW_HIDE = 0
 
+// Windows 进程创建标志
+const CREATE_NO_WINDOW = 0x08000000
+
 func hideConsoleWindow() {
 	defer func() {
 		recover()
@@ -38,27 +41,28 @@ func isDaemonRunning() bool {
 	exeName := strings.ToLower(filepath.Base(exePath))
 	currentPid := os.Getpid()
 
-	// 使用 WMIC 获取进程命令行，以区分 daemon 和其他子命令
-	cmd := exec.Command("wmic", "process", "where", fmt.Sprintf("name='%s'", exeName), "get", "processid,commandline", "/format:csv")
+	// 使用 PowerShell 获取进程命令行，以区分 daemon 和其他子命令
+	psScript := fmt.Sprintf("Get-WmiObject Win32_Process -Filter \"name='%s'\" | Select-Object ProcessId, CommandLine | ConvertTo-Csv -NoTypeInformation", exeName)
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", psScript)
 	output, err := cmd.Output()
 	if err != nil {
-		// WMIC 失败时回退到简单检测
+		// PowerShell 失败时回退到简单检测
 		return isDaemonRunningSimple()
 	}
 
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "Node,") || strings.HasPrefix(line, "CommandLine") {
+		if line == "" || strings.HasPrefix(line, "\"ProcessId\"") {
 			continue
 		}
-		// CSV 格式: Node,CommandLine,ProcessId
+		// CSV 格式: "ProcessId","CommandLine"
 		fields := strings.Split(line, ",")
-		if len(fields) < 3 {
+		if len(fields) < 2 {
 			continue
 		}
-		cmdLine := fields[1]
-		pid := strings.TrimSpace(fields[2])
+		pid := strings.Trim(fields[0], `"`)
+		cmdLine := strings.Trim(fields[1], `"`)
 		if pid == "" || pid == fmt.Sprintf("%d", currentPid) {
 			continue
 		}
@@ -115,11 +119,12 @@ func startDaemonHidden() error {
 		return fmt.Errorf("守护进程已在运行")
 	}
 
-	// 使用 cmd /c start 来启动完全独立的进程
-	// 这样父进程退出时子进程不会被终止
-	cmd := exec.Command("cmd", "/c", "start", "/b", "", exePath, "daemon", "-hide")
+	// 使用 CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW 启动完全独立的进程
+	// CREATE_NEW_PROCESS_GROUP: 创建新的进程组，子进程不会收到父进程的 Ctrl+C 信号
+	// CREATE_NO_WINDOW: 子进程不会创建控制台窗口，实现后台静默运行
+	cmd := exec.Command(exePath, "daemon", "-hide")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow: true,
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
 	}
 	cmd.Stdout = nil
 	cmd.Stderr = nil

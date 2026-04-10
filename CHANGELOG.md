@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.1] - 2026-04-10
+
+### Bug Fixes
+- 修复守护进程随交互式终端退出而终止的问题
+- 修复守护进程启动时出现可见终端窗口的问题
+
+### Design Rationale
+- 使用 Windows `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` 标志启动完全独立的进程
+- `CREATE_NEW_PROCESS_GROUP`: 子进程不会收到父进程的 Ctrl+C 信号
+- `CREATE_NO_WINDOW`: 子进程不会创建控制台窗口，实现后台静默运行
+- 配合 `-hide` 参数在子进程内部隐藏窗口，双重保障
+
 ## [3.2.0] - 2026-04-10
 
 ### Features
