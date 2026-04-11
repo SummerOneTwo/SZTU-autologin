@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.2.2] - 2026-04-11
+
+### Bug Fixes
+- 修复开机自启动仍显示终端窗口的问题
+- 统一开机自启动与手动开启自动重连的守护进程启动逻辑
+
+### Design Rationale
+- 开机自启动现在复用 `ensureDaemonRunning()` 函数，与手动开启自动重连使用相同的 `startDaemonHidden()` 启动方式
+- 提取公共函数 `ensureDaemonRunning()` 返回 `(alreadyRunning, error)`，消除重复的 `isDaemonRunning()` 检查
+- 删除 `daemon_other.go`，项目仅支持 Windows，无需跨平台占位
+
+### Notes & Caveats
+- 开机自启动和手动开启自动重连现在行为完全一致，都使用 `CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW` 标志启动独立后台进程
+
 ## [3.2.1] - 2026-04-10
 
 ### Bug Fixes

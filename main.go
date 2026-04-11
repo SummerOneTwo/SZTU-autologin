@@ -241,38 +241,39 @@ func getISPName(isp string) string {
 	return isp
 }
 
+// ensureDaemonRunning 确保守护进程在运行
+// 返回 (已运行, 错误)，用于调用方决定输出消息
+func ensureDaemonRunning() (alreadyRunning bool, err error) {
+	if isDaemonRunning() {
+		return true, nil
+	}
+	return false, startDaemonHidden()
+}
+
 func toggleAutoReconnect(cfg *Config) {
 	newState := !cfg.AutoReconnect
 
 	if newState {
-		// 开启：检查守护进程是否已在运行
-		if isDaemonRunning() {
-			// 守护进程已在运行，只需更新配置
-			cfg.AutoReconnect = true
-			if err := SaveConfig(*cfg); err != nil {
-				fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
-				return
-			}
-			fmt.Println("自动重连已启用（守护进程已在运行）")
-			return
-		}
-
-		// 保存配置并启动守护进程
+		// 开启：保存配置并确保守护进程运行
 		cfg.AutoReconnect = true
 		if err := SaveConfig(*cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 			return
 		}
 
-		fmt.Println("正在启动守护进程...")
-		if err := startDaemonHidden(); err != nil {
+		alreadyRunning, err := ensureDaemonRunning()
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "启动守护进程失败: %v\n", err)
 			// 回滚配置
 			cfg.AutoReconnect = false
 			SaveConfig(*cfg)
 			return
 		}
-		fmt.Println("自动重连已启用（后台运行中）")
+		if alreadyRunning {
+			fmt.Println("自动重连已启用（守护进程已在运行）")
+		} else {
+			fmt.Println("自动重连已启用（后台运行中）")
+		}
 	} else {
 		// 关闭：保存配置 + 停止守护进程
 		cfg.AutoReconnect = false
@@ -402,21 +403,15 @@ func runAutostartLaunch() {
 		return
 	}
 
-	// 检查守护进程是否已在运行
-	if isDaemonRunning() {
-		return // 守护进程已运行，无需重复启动
-	}
-
-	// 写入配置并启动守护进程
+	// 写入配置
 	cfg.AutoReconnect = true
 	if err := SaveConfig(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "保存配置失败: %v\n", err)
 		return
 	}
 
-	// 隐藏窗口后启动守护进程
-	hideConsoleWindow()
-	runDaemon()
+	// 确保守护进程运行
+	_, _ = ensureDaemonRunning()
 }
 
 func runAutostart(action string) {
