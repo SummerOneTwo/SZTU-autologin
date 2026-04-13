@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.2.4] - 2026-04-13
+
+### Bug Fixes
+- 修复开机自启动时短暂黑框弹出的问题
+
+### Design Rationale
+- 在 `runAutostartLaunch()` 函数开头调用 `hideConsoleWindow()`，尽早隐藏控制台窗口
+- 之前只有 daemon 子进程使用了 `CREATE_NO_WINDOW` 标志，但任务计划程序启动的父进程 `autostart-launch` 未隐藏
+
 ## [3.2.3] - 2026-04-13
 
 ### Bug Fixes

@@ -390,6 +390,8 @@ func runLogin() {
 }
 
 func runAutostartLaunch() {
+	hideConsoleWindow() // 立即隐藏控制台窗口，避免黑框闪烁
+
 	// 开机自启动时，先验证配置
 	cfg, err := LoadConfig()
 	if err != nil {
