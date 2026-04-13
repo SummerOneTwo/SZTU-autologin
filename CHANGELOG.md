@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.2.3] - 2026-04-13
+
+### Bug Fixes
+- 修复使用 VPN/TUN 代理（如 Clash）时登录失败的问题
+
+### Design Rationale
+- 改用服务器返回的 `client_ip` 作为登录 IP，而非本地 UDP dial 获取
+- 本地获取 IP 时可能选择虚拟适配器地址（如 `198.18.0.1`），导致认证无法生效
+- 服务器返回的 `client_ip` 是校园网认证系统看到的真实客户端 IP，确保登录请求中的 IP 与服务器期望一致
+
+### Notes & Caveats
+- 删除了不再使用的 `getLocalIP()` 函数和 `net` 包导入
+- 此修复适用于所有使用 VPN/代理软件的校园网用户
+
 ## [3.2.2] - 2026-04-11
 
 ### Bug Fixes

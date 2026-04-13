@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -21,6 +20,7 @@ const (
 var (
 	HTTPClient  = &http.Client{Timeout: 10 * time.Second}
 	reChallenge = regexp.MustCompile(`"challenge":"(.*?)"`)
+	reClientIP  = regexp.MustCompile(`"client_ip":"(.*?)"`)
 	reErrorOK   = regexp.MustCompile(`"error":"ok"`)
 	reJSONP     = regexp.MustCompile(`\((.*?)\)`)
 	reQuote     = regexp.MustCompile(`'`)
@@ -64,20 +64,6 @@ func NewLoginEngine(cfg Config) *LoginEngine {
 	}
 }
 
-func (e *LoginEngine) getLocalIP() error {
-	conn, err := net.Dial("udp", "172.19.0.5:80")
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	localAddr, ok := conn.LocalAddr().(*net.UDPAddr)
-	if !ok {
-		return fmt.Errorf("无法获取本地UDP地址")
-	}
-	e.ip = localAddr.IP.String()
-	return nil
-}
-
 func (e *LoginEngine) getToken() error {
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	params := url.Values{
@@ -110,6 +96,13 @@ func (e *LoginEngine) getToken() error {
 		return fmt.Errorf("无法获取 challenge token")
 	}
 	e.token = matches[1]
+
+	// 解析 client_ip（服务器看到的真实IP，避免本地VPN/代理导致的IP错误）
+	ipMatches := reClientIP.FindStringSubmatch(bodyStr)
+	if len(ipMatches) >= 2 {
+		e.ip = ipMatches[1]
+	}
+
 	return nil
 }
 
@@ -147,12 +140,14 @@ func (e *LoginEngine) doComplexWork() error {
 }
 
 func (e *LoginEngine) Login() LoginResult {
-	if err := e.getLocalIP(); err != nil {
-		return LoginResult{false, "无法获取本机IP: " + err.Error()}
-	}
-
+	// 先获取 token 和 IP（从服务器响应中获取 client_ip，避免本地VPN/代理导致的IP错误）
 	if err := e.getToken(); err != nil {
 		return LoginResult{false, "获取token失败: " + err.Error()}
+	}
+
+	// 验证 IP 是否获取成功
+	if e.ip == "" {
+		return LoginResult{false, "无法获取本机IP"}
 	}
 
 	if err := e.doComplexWork(); err != nil {
