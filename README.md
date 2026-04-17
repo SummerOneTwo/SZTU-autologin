@@ -58,9 +58,17 @@ sztu-autologin.exe help
 ## 编译
 
 ```bash
-# 编译为 Windows GUI 应用程序（无控制台窗口）
-go build -ldflags "-H=windowsgui" -o sztu-autologin.exe
+# 编译主程序（控制台程序）
+go build -o sztu-autologin.exe .
+
+# 编译自启动程序（GUI 程序，无窗口）
+go build -ldflags "-H=windowsgui" -o sztu-autologin-launch.exe ./cmd/autologin-launch
 ```
+
+## 文件说明
+
+- `sztu-autologin.exe` - 主程序，双击运行交互菜单
+- `sztu-autologin-launch.exe` - 自启动程序，开机时静默启动守护进程
 
 ## 测试
 

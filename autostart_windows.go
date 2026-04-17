@@ -63,10 +63,13 @@ func enableAutostart() error {
 		return err
 	}
 
+	// 自启动程序路径
+	launchExe := filepath.Join(filepath.Dir(exePath), "sztu-autologin-launch.exe")
+
 	args := []string{
 		"/create",
 		"/tn", taskName,
-		"/tr", fmt.Sprintf(`"%s" autostart-launch`, exePath),
+		"/tr", fmt.Sprintf(`"%s"`, launchExe),
 		"/sc", "onlogon",
 		"/f",
 	}

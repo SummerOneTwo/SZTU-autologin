@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.2.6] - 2026-04-18
+
+### Bug Fixes
+- 修复双击运行时终端疯狂闪烁的问题
+
+### Design Rationale
+- 改用双进程架构：
+  - `sztu-autologin.exe`：普通控制台程序，双击直接运行交互菜单
+  - `sztu-autologin-launch.exe`：GUI 程序，开机自启动时静默启动守护进程
+- 主程序不再使用 `-H=windowsgui` 编译标志，避免 stdin 不可用时的无限循环问题
+- 自启动程序独立编译为 GUI 程序，无窗口闪烁
+
+### Notes & Caveats
+- 旧的开机自启动任务指向 `sztu-autologin.exe autostart-launch`，已保留该命令以兼容
+- 新创建的自启动任务将指向 `sztu-autologin-launch.exe`
+
 ## [3.2.5] - 2026-04-17
 
 ### Features

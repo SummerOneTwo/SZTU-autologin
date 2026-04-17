@@ -22,14 +22,12 @@ type menuStatus struct {
 func main() {
 	args := parseCLIArgs(os.Args[1:])
 
-	// GUI 模式下，交互模式需要附加父控制台
 	if args.command == "" {
-		attachParentConsole()
 		runInteractive()
 		return
 	}
 
-	// daemon 模式仍需隐藏窗口（作为双重保障）
+	// daemon 模式隐藏窗口
 	if args.hide && args.command == "daemon" {
 		hideConsoleWindow()
 	}
@@ -89,13 +87,11 @@ func runInteractive() {
 	// 检查配置与进程状态一致性
 	daemonRunning := isDaemonRunning()
 	if cfg.AutoReconnect && !daemonRunning {
-		// 配置为 true 但进程不存在 → 修正配置
 		cfg.AutoReconnect = false
 		if err := SaveConfig(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "修正配置失败: %v\n", err)
 		}
 	} else if !cfg.AutoReconnect && daemonRunning {
-		// 配置为 false 但守护进程仍在运行 → 停止守护进程
 		stopDaemon()
 	}
 
@@ -115,8 +111,7 @@ func runInteractive() {
 		fmt.Print("输入选项: ")
 		choice, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
-			continue
+			return
 		}
 		choice = strings.TrimSpace(choice)
 
@@ -134,7 +129,6 @@ func runInteractive() {
 		case "4":
 			toggleAutostart()
 		case "5":
-			// 刷新状态，直接进入下一次循环
 			continue
 		case "0":
 			fmt.Println("再见！")
@@ -145,10 +139,7 @@ func runInteractive() {
 
 		if choice != "0" && choice != "5" {
 			fmt.Print("\n按回车继续...")
-			_, err = reader.ReadString('\n')
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
-			}
+			_, _ = reader.ReadString('\n')
 		}
 	}
 }
@@ -245,8 +236,6 @@ func getISPName(isp string) string {
 	return isp
 }
 
-// ensureDaemonRunning 确保守护进程在运行
-// 返回 (已运行, 错误)，用于调用方决定输出消息
 func ensureDaemonRunning() (alreadyRunning bool, err error) {
 	if isDaemonRunning() {
 		return true, nil
@@ -258,7 +247,6 @@ func toggleAutoReconnect(cfg *Config) {
 	newState := !cfg.AutoReconnect
 
 	if newState {
-		// 开启：保存配置并确保守护进程运行
 		cfg.AutoReconnect = true
 		if err := SaveConfig(*cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
@@ -268,7 +256,6 @@ func toggleAutoReconnect(cfg *Config) {
 		alreadyRunning, err := ensureDaemonRunning()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "启动守护进程失败: %v\n", err)
-			// 回滚配置
 			cfg.AutoReconnect = false
 			SaveConfig(*cfg)
 			return
@@ -279,7 +266,6 @@ func toggleAutoReconnect(cfg *Config) {
 			fmt.Println("自动重连已启用（后台运行中）")
 		}
 	} else {
-		// 关闭：保存配置 + 停止守护进程
 		cfg.AutoReconnect = false
 		if err := SaveConfig(*cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
@@ -393,33 +379,6 @@ func runLogin() {
 	}
 }
 
-func runAutostartLaunch() {
-	// GUI 模式下无需隐藏窗口
-
-	// 开机自启动时，先验证配置
-	cfg, err := LoadConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-		return
-	}
-
-	// 验证配置有效性
-	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(os.Stderr, "配置无效: %v\n", err)
-		return
-	}
-
-	// 写入配置
-	cfg.AutoReconnect = true
-	if err := SaveConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "保存配置失败: %v\n", err)
-		return
-	}
-
-	// 确保守护进程运行
-	_, _ = ensureDaemonRunning()
-}
-
 func runAutostart(action string) {
 	if action == "" {
 		fmt.Println("Usage: sztu-autologin autostart [on|off|status]")
@@ -430,4 +389,24 @@ func runAutostart(action string) {
 		return
 	}
 	os.Exit(handleAutostartAction(action))
+}
+
+// runAutostartLaunch 兼容旧的自启动任务
+func runAutostartLaunch() {
+	// 隐藏窗口
+	hideConsoleWindow()
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		return
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return
+	}
+
+	cfg.AutoReconnect = true
+	SaveConfig(cfg)
+
+	ensureDaemonRunning()
 }

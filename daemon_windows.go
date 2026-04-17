@@ -13,12 +13,9 @@ import (
 )
 
 var (
-	user32DLL            = syscall.NewLazyDLL("user32.dll")
+	user32DLL        = syscall.NewLazyDLL("user32.dll")
+	procShowWindow   = user32DLL.NewProc("ShowWindow")
 	procGetConsoleWindow = user32DLL.NewProc("GetConsoleWindow")
-	procShowWindow       = user32DLL.NewProc("ShowWindow")
-
-	kernel32          = syscall.NewLazyDLL("kernel32.dll")
-	procAttachConsole = kernel32.NewProc("AttachConsole")
 )
 
 const SW_HIDE = 0
@@ -36,14 +33,6 @@ func hideConsoleWindow() {
 	}
 }
 
-// attachParentConsole 尝试附加到父进程的控制台
-// 用于 GUI 模式下恢复命令行输出能力
-// 这是 best-effort 操作：失败时程序仍正常运行，只是输出不可见
-func attachParentConsole() {
-	// ATTACH_PARENT_PROCESS = -1 (0xFFFFFFFF)
-	procAttachConsole.Call(uintptr(0xFFFFFFFF))
-}
-
 func isDaemonRunning() bool {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -57,7 +46,6 @@ func isDaemonRunning() bool {
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", psScript)
 	output, err := cmd.Output()
 	if err != nil {
-		// PowerShell 失败时回退到简单检测
 		return isDaemonRunningSimple()
 	}
 
@@ -67,7 +55,6 @@ func isDaemonRunning() bool {
 		if line == "" || strings.HasPrefix(line, "\"ProcessId\"") {
 			continue
 		}
-		// CSV 格式: "ProcessId","CommandLine"
 		fields := strings.Split(line, ",")
 		if len(fields) < 2 {
 			continue
@@ -77,7 +64,6 @@ func isDaemonRunning() bool {
 		if pid == "" || pid == fmt.Sprintf("%d", currentPid) {
 			continue
 		}
-		// 检查命令行是否包含 daemon 参数
 		if strings.Contains(cmdLine, " daemon") {
 			return true
 		}
@@ -85,7 +71,6 @@ func isDaemonRunning() bool {
 	return false
 }
 
-// isDaemonRunningSimple 是 WMIC 不可用时的简单回退检测
 func isDaemonRunningSimple() bool {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -125,14 +110,10 @@ func startDaemonHidden() error {
 		return fmt.Errorf("获取程序路径失败: %w", err)
 	}
 
-	// 先检查当前是否有守护进程在运行
 	if isDaemonRunning() {
 		return fmt.Errorf("守护进程已在运行")
 	}
 
-	// 使用 CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW 启动完全独立的进程
-	// CREATE_NEW_PROCESS_GROUP: 创建新的进程组，子进程不会收到父进程的 Ctrl+C 信号
-	// CREATE_NO_WINDOW: 子进程不会创建控制台窗口，实现后台静默运行
 	cmd := exec.Command(exePath, "daemon", "-hide")
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
@@ -145,10 +126,8 @@ func startDaemonHidden() error {
 		return fmt.Errorf("启动进程失败: %w", err)
 	}
 
-	// 等待进程启动
 	time.Sleep(2 * time.Second)
 
-	// 检查进程是否仍在运行
 	if !isDaemonRunning() {
 		return fmt.Errorf("守护进程启动后立即退出")
 	}
@@ -164,7 +143,6 @@ func stopDaemon() {
 	}
 	exeName := strings.ToLower(filepath.Base(exePath))
 
-	// 查找同名进程
 	cmd := exec.Command("tasklist", "/fo", "csv", "/nh")
 	output, err := cmd.Output()
 	if err != nil {
@@ -179,7 +157,6 @@ func stopDaemon() {
 		if line == "" {
 			continue
 		}
-		// CSV 格式: "ImageName","PID","SessionName","Session#","MemUsage"
 		fields := strings.Split(line, ",")
 		if len(fields) < 2 {
 			continue
@@ -196,7 +173,6 @@ func stopDaemon() {
 		return
 	}
 
-	// 终止找到的进程
 	for _, pid := range pids {
 		cmd := exec.Command("taskkill", "/pid", pid, "/f")
 		if err := cmd.Run(); err != nil {
