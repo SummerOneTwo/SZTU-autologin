@@ -41,7 +41,6 @@ sztu-autologin.exe help
   "username": "学号",
   "password": "密码",
   "isp": "cucc",
-  "area": "dormitory",
   "ac_id": "17",
   "auto_reconnect": false,
   "check_interval": 300
@@ -54,10 +53,7 @@ sztu-autologin.exe help
 - `cmcc` - 中国移动
 - `chinanet` - 中国电信
 
-### 区域选项
-
-- `dormitory` - 宿舍区 (ac_id=17)
-- `teaching` - 教学区 (ac_id=1)
+> **注意**: 暂时只支持宿舍区 (ac_id=17)，教学区设置暂未确定。
 
 ## 编译
 

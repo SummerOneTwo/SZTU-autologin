@@ -51,7 +51,7 @@ func runSetup() {
 	fmt.Println("请按提示完成初始配置: ")
 
 	// Username
-	username, err := readLine(reader, "[步骤 1/4] 输入学号: ")
+	username, err := readLine(reader, "[步骤 1/3] 输入学号: ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
 		return
@@ -63,7 +63,7 @@ func runSetup() {
 	cfg.Username = username
 
 	// Password
-	password, err := readPassword("[步骤 2/4] 输入密码: ")
+	password, err := readPassword("[步骤 2/3] 输入密码: ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取密码失败: %v\n", err)
 		return
@@ -75,7 +75,7 @@ func runSetup() {
 	cfg.Password = password
 
 	// ISP
-	fmt.Println("\n[步骤 3/4] 选择运营商:")
+	fmt.Println("\n[步骤 3/3] 选择运营商:")
 	fmt.Println("  [1] 中国联通 (@cucc)")
 	fmt.Println("  [2] 中国移动 (@cmcc)")
 	fmt.Println("  [3] 中国电信 (@chinanet)")
@@ -96,30 +96,6 @@ func runSetup() {
 			fmt.Println("无效选择，使用默认: 中国联通")
 		}
 		cfg.ISP = "cucc"
-	}
-
-	// Area
-	fmt.Println("\n[步骤 4/4] 选择区域:")
-	fmt.Println("  [1] 宿舍区 (ac_id=17)")
-	fmt.Println("  [2] 教学区 (ac_id=1)")
-	areaChoice, err := readLine(reader, "> 选择 [1]: ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "读取输入失败: %v\n", err)
-		return
-	}
-	switch areaChoice {
-	case "2":
-		cfg.Area = "teaching"
-		cfg.ACID = "1"
-	case "":
-		cfg.Area = "dormitory"
-		cfg.ACID = "17"
-	default:
-		if areaChoice != "1" {
-			fmt.Println("无效选择，使用默认: 宿舍区")
-		}
-		cfg.Area = "dormitory"
-		cfg.ACID = "17"
 	}
 
 	// Save config

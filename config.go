@@ -11,7 +11,6 @@ type Config struct {
 	Username      string `json:"username"`
 	Password      string `json:"password"`
 	ISP           string `json:"isp"`
-	Area          string `json:"area"`
 	ACID          string `json:"ac_id"`
 	AutoReconnect bool   `json:"auto_reconnect"`
 	CheckInterval int    `json:"check_interval"`
@@ -20,7 +19,6 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		ISP:           "cucc",
-		Area:          "dormitory",
 		ACID:          "17",
 		AutoReconnect: false,
 		CheckInterval: 300,
