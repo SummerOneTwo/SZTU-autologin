@@ -16,6 +16,9 @@ var (
 	user32DLL            = syscall.NewLazyDLL("user32.dll")
 	procGetConsoleWindow = user32DLL.NewProc("GetConsoleWindow")
 	procShowWindow       = user32DLL.NewProc("ShowWindow")
+
+	kernel32          = syscall.NewLazyDLL("kernel32.dll")
+	procAttachConsole = kernel32.NewProc("AttachConsole")
 )
 
 const SW_HIDE = 0
@@ -31,6 +34,15 @@ func hideConsoleWindow() {
 	if hwnd != 0 {
 		procShowWindow.Call(hwnd, SW_HIDE)
 	}
+}
+
+// attachParentConsole 尝试附加到父进程的控制台
+// 用于 GUI 模式下恢复命令行输出能力
+// 这是 best-effort 操作：失败时程序仍正常运行，只是输出不可见
+func attachParentConsole() bool {
+	// ATTACH_PARENT_PROCESS = -1 (0xFFFFFFFF)
+	ret, _, _ := procAttachConsole.Call(uintptr(0xFFFFFFFF))
+	return ret != 0
 }
 
 func isDaemonRunning() bool {

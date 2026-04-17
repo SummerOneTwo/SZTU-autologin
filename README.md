@@ -58,7 +58,8 @@ sztu-autologin.exe help
 ## 编译
 
 ```bash
-go build -o sztu-autologin.exe
+# 编译为 Windows GUI 应用程序（无控制台窗口）
+go build -ldflags "-H=windowsgui" -o sztu-autologin.exe
 ```
 
 ## 测试

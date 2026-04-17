@@ -21,13 +21,17 @@ type menuStatus struct {
 
 func main() {
 	args := parseCLIArgs(os.Args[1:])
-	// 仅在 daemon 命令时隐藏窗口，交互模式不支持 -hide
-	if args.hide && args.command == "daemon" {
-		hideConsoleWindow()
-	}
+
+	// GUI 模式下，交互模式需要附加父控制台
 	if args.command == "" {
+		attachParentConsole()
 		runInteractive()
 		return
+	}
+
+	// daemon 模式仍需隐藏窗口（作为双重保障）
+	if args.hide && args.command == "daemon" {
+		hideConsoleWindow()
 	}
 
 	switch args.command {
@@ -390,7 +394,7 @@ func runLogin() {
 }
 
 func runAutostartLaunch() {
-	hideConsoleWindow() // 立即隐藏控制台窗口，避免黑框闪烁
+	// GUI 模式下无需隐藏窗口
 
 	// 开机自启动时，先验证配置
 	cfg, err := LoadConfig()
