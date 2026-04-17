@@ -4,22 +4,6 @@ sztu-autologin
 *.exe
 *.exe~
 
-# Python (legacy)
-__pycache__/
-*.py[cod]
-*.pyo
-*.py.class
-.venv/
-env/
-venv/
-build/
-dist/
-*.egg
-*.egg-info/
-*.spec
-.ruff_cache/
-.pytest_cache/
-
 # Config
 config.json
 autologin.lock

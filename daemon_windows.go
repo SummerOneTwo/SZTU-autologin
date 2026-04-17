@@ -39,10 +39,9 @@ func hideConsoleWindow() {
 // attachParentConsole 尝试附加到父进程的控制台
 // 用于 GUI 模式下恢复命令行输出能力
 // 这是 best-effort 操作：失败时程序仍正常运行，只是输出不可见
-func attachParentConsole() bool {
+func attachParentConsole() {
 	// ATTACH_PARENT_PROCESS = -1 (0xFFFFFFFF)
-	ret, _, _ := procAttachConsole.Call(uintptr(0xFFFFFFFF))
-	return ret != 0
+	procAttachConsole.Call(uintptr(0xFFFFFFFF))
 }
 
 func isDaemonRunning() bool {

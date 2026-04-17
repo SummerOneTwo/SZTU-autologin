@@ -26,9 +26,9 @@ var (
 	reQuote     = regexp.MustCompile(`'`)
 )
 
-// 创建带User-Agent的请求
-func newRequest(method, url string) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, nil)
+// 创建带 User-Agent 的 GET 请求
+func newGetRequest(url string) (*http.Request, error) {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (e *LoginEngine) getToken() error {
 
 	requestURL := getChallengeAPI + "?" + params.Encode()
 
-	req, err := newRequest("GET", requestURL)
+	req, err := newGetRequest(requestURL)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (e *LoginEngine) Login() LoginResult {
 
 	requestURL := srunPortalAPI + "?" + params
 
-	req, err := newRequest("GET", requestURL)
+	req, err := newGetRequest(requestURL)
 	if err != nil {
 		return LoginResult{false, "创建请求失败: " + err.Error()}
 	}

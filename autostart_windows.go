@@ -100,7 +100,7 @@ func disableAutostart() error {
 
 func isAutostartEnabled() bool {
 	args := []string{"/query", "/tn", taskName}
-	_, err := runSchTasksQuiet(args...)
+	_, err := runSchTasks(args...)
 	return err == nil
 }
 
@@ -108,10 +108,6 @@ func runSchTasks(args ...string) (string, error) {
 	cmd := exec.Command("schtasks", args...)
 	output, err := cmd.CombinedOutput()
 	return decodeWindowsCommandOutput(output), err
-}
-
-func runSchTasksQuiet(args ...string) (string, error) {
-	return runSchTasks(args...)
 }
 
 func runSchTasksElevated(args ...string) (string, error) {
